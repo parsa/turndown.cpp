@@ -1,0 +1,9 @@
+# Editor + OS cruft we currently see ignored
+.DS_Store
+.cache/
+.vscode/
+CMakeUserPresets.json
+
+# Paths observed in `git status --ignored`
+/build/
+/Testing/Temporary/
