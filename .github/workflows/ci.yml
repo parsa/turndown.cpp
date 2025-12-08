@@ -31,3 +31,29 @@ jobs:
         working-directory: build
         run: ctest --build-config ${{ matrix.build_type }} --output-on-failure
 
+  install-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Dependencies
+        run: sudo apt-get update && sudo apt-get install -y libgumbo-dev
+
+      - name: Configure CMake
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DTURNDOWN_BUILD_DOCS=OFF -DTURNDOWN_BUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/build/install_prefix
+
+      - name: Build
+        run: cmake --build build
+
+      - name: Install
+        run: cmake --install build
+
+      - name: Configure Install Test
+        run: cmake -B build/install_test -S test/install_test -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/install_prefix
+
+      - name: Build Install Test
+        run: cmake --build build/install_test
+
+      - name: Run Install Test
+        run: ./build/install_test/install_test
