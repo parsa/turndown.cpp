@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <functional>
+#include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -41,6 +42,12 @@ class ChildRange {
 public:
     class Iterator {
     public:
+        using iterator_category = std::input_iterator_tag;
+        using value_type = NodeView;
+        using difference_type = std::ptrdiff_t;
+        using pointer = NodeView*;
+        using reference = NodeView;
+
         explicit Iterator(GumboNode** ptr);
         NodeView operator*() const;
         Iterator& operator++();
@@ -72,6 +79,12 @@ class AttributeRange {
 public:
     class Iterator {
     public:
+        using iterator_category = std::input_iterator_tag;
+        using value_type = AttributeView;
+        using difference_type = std::ptrdiff_t;
+        using pointer = AttributeView*;
+        using reference = AttributeView;
+
         explicit Iterator(GumboAttribute** ptr);
         AttributeView operator*() const;
         Iterator& operator++();
