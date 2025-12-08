@@ -1,4 +1,16 @@
-// turndown.cpp/src/node.cpp
+/// @file node.cpp
+/// @brief Implementation of node analysis utilities
+///
+/// This file implements functions for analyzing DOM nodes during
+/// HTML to Markdown conversion. It handles whitespace detection,
+/// blank node identification, and flanking whitespace computation.
+///
+/// The implementation follows the original JavaScript Turndown node.js module.
+///
+/// @copyright The MIT License (MIT)
+/// @copyright Copyright (c) 2017 Dom Christie
+/// @copyright C++ port copyright (c) 2025 Parsa Amini
+
 #include "node.h"
 #include "gumbo_adapter.h"
 #include "utf8_helpers.h"
@@ -79,17 +91,36 @@ std::vector<CodepointSlice> toCodepoints(std::string const& text) {
     return codepoints;
 }
 
+/**
+ * @struct EdgeWhitespaceParts
+ * @brief Structured edge whitespace parts
+ *
+ * Separates whitespace into ASCII and non-ASCII components so the
+ * algorithm can decide whether to strip ASCII spaces while keeping
+ * non-breaking spaces (NBSPs) intact.
+ */
 struct EdgeWhitespaceParts {
-    std::string leading;
-    std::string leadingAscii;
-    std::string leadingNonAscii;
-    std::string trailing;
-    std::string trailingAscii;
-    std::string trailingNonAscii;
+    std::string leading;          ///< All leading whitespace
+    std::string leadingAscii;     ///< ASCII-only leading whitespace
+    std::string leadingNonAscii;  ///< Non-ASCII leading whitespace (e.g., NBSP)
+    std::string trailing;         ///< All trailing whitespace
+    std::string trailingAscii;    ///< ASCII-only trailing whitespace
+    std::string trailingNonAscii; ///< Non-ASCII trailing whitespace
 };
 
-// Extracts edge whitespace and keeps both the raw bytes and an ASCII/non-ASCII
-// split so downstream spacing logic can reason about NBSPs.
+/**
+ * @brief Extract edge whitespace from a string
+ *
+ * Analyzes a string to find leading and trailing whitespace, separating
+ * ASCII whitespace (which may be collapsed) from non-ASCII whitespace
+ * (which should be preserved, like NBSPs).
+ *
+ * This mirrors the edgeWhitespace regex in the JavaScript version:
+ * `/^(([ \\t\\r\\n]*)(\\s*))(?:(?=\\S)[\\s\\S]*\\S)?((\\s*?)([ \\t\\r\\n]*))$/`
+ *
+ * @param[in] text The string to analyze
+ * @return Structured whitespace parts
+ */
 EdgeWhitespaceParts computeEdgeWhitespace(std::string const& text) {
     EdgeWhitespaceParts parts;
     auto codepoints = toCodepoints(text);
@@ -195,7 +226,15 @@ std::string siblingTextContent(gumbo::NodeView node) {
 
 } // namespace
 
-// Reproduces the JS edgeWhitespace handling so NBSP spacing survives correctly.
+/**
+ * @brief Encode non-breaking spaces in flanking whitespace
+ *
+ * Converts NBSP characters (U+00A0) to HTML entities so they
+ * survive in the Markdown output.
+ *
+ * @param[in] text The string containing NBSPs
+ * @return String with NBSPs encoded as &amp;nbsp;
+ */
 static std::string encodeNbsp(std::string const& text) {
     std::string result;
     result.reserve(text.size());
@@ -212,7 +251,7 @@ static std::string encodeNbsp(std::string const& text) {
     return result;
 }
 
-// Computes flanking whitespace chunks for a node, honoring preformatted/code rules.
+/// Compute flanking whitespace for a node.
 FlankingWhitespace flankingWhitespace(gumbo::NodeView node, bool preformattedCode) {
     FlankingWhitespace ws{"", ""};
     if (!node) return ws;
@@ -239,7 +278,7 @@ FlankingWhitespace flankingWhitespace(gumbo::NodeView node, bool preformattedCod
     return ws;
 }
 
-// True when a node and its contents are whitespace-only and not meaningful blank.
+/// Determine if a node is blank (contains only whitespace).
 bool isBlank(gumbo::NodeView node) {
     if (!node) return false;
     if (node.is_element()) {
@@ -260,7 +299,7 @@ bool isBlank(gumbo::NodeView node) {
     return true;
 }
 
-// Checks if a node has ASCII-space text on the requested sibling side.
+/// Check if node is flanked by whitespace on one side.
 bool isFlankedByWhitespace(FlankSide side, gumbo::NodeView node, bool preformattedCode) {
     gumbo::NodeView sibling = adjacentSibling(node, side);
     if (!sibling) return false;
@@ -283,7 +322,7 @@ bool isFlankedByWhitespace(FlankSide side, gumbo::NodeView node, bool preformatt
     return (side == FlankSide::Left) ? endsWithAsciiSpace(text) : startsWithAsciiSpace(text);
 }
 
-// Builds metadata about a node used by turndown processing.
+/// Analyze a node and compute all metadata.
 NodeMetadata analyzeNode(gumbo::NodeView node, bool preformattedCode) {
     NodeMetadata meta;
     if (!node) return meta;

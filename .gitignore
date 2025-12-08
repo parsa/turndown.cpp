@@ -7,3 +7,6 @@ CMakeUserPresets.json
 # Paths observed in `git status --ignored`
 /build/
 /Testing/Temporary/
+
+# Generated documentation
+/docs/

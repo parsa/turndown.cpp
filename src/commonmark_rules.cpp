@@ -1,4 +1,29 @@
-// turndown.cpp/src/commonmark_rules.cpp
+/// @file commonmark_rules.cpp
+/// @brief Implementation of CommonMark conversion rules
+///
+/// This file defines the standard CommonMark rules that convert HTML
+/// elements to their Markdown equivalents. These rules handle:
+///
+/// - Paragraphs (\<p\>)
+/// - Line breaks (\<br\>)
+/// - Headings (\<h1\> through \<h6\>)
+/// - Blockquotes (\<blockquote\>)
+/// - Lists (\<ul\>, \<ol\>, \<li\>)
+/// - Code blocks (\<pre\>\<code\>)
+/// - Horizontal rules (\<hr\>)
+/// - Links (\<a\>)
+/// - Emphasis (\<em\>, \<i\>)
+/// - Strong (\<strong\>, \<b\>)
+/// - Inline code (\<code\>)
+/// - Images (\<img\>)
+///
+/// The rules follow the CommonMark specification and match the behavior
+/// of the original JavaScript Turndown library.
+///
+/// @copyright The MIT License (MIT)
+/// @copyright Copyright (c) 2017+ Dom Christie
+/// @copyright C++ port copyright (c) 2025 Parsa Amini
+
 #include "commonmark_rules.h"
 #include "gumbo_adapter.h"
 #include "rules.h"

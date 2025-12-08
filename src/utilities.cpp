@@ -1,4 +1,16 @@
-// turndown.cpp/src/utilities.cpp
+/// @file utilities.cpp
+/// @brief Implementation of utility functions for HTML to Markdown conversion
+///
+/// This file implements various utility functions used throughout the
+/// conversion process, including element classification, text extraction,
+/// string manipulation, and Markdown escaping.
+///
+/// The implementation follows the original JavaScript Turndown utilities.js module.
+///
+/// @copyright The MIT License (MIT)
+/// @copyright Copyright (c) 2017 Dom Christie
+/// @copyright C++ port copyright (c) 2025 Parsa Amini
+
 #include "gumbo_adapter.h"
 #include "turndown.h"
 #include "utf8_helpers.h"
@@ -244,12 +256,12 @@ void serializeNodeRecursive(gumbo::NodeView node, std::string& output) {
 
 } // namespace
 
-// True if code point is ASCII whitespace (U+0009..0D or U+0020).
+/// Check if a code point is ASCII whitespace.
 bool isAsciiWhitespaceCodePoint(std::uint32_t cp) {
     return cp == 0x20 || (cp >= 0x09 && cp <= 0x0D);
 }
 
-// True if code point is any Unicode whitespace.
+/// Check if a code point is any Unicode whitespace.
 bool isUnicodeWhitespace(std::uint32_t cp) {
     if (isAsciiWhitespaceCodePoint(cp)) return true;
     switch (cp) {
@@ -284,7 +296,14 @@ bool isAsciiWhitespace(char c) {
     return (c == ' ' || c == '\t' || c == '\r' || c == '\n');
 }
 
-// True if node is a block-level element.
+/**
+ * @brief Check if a node is a block-level element
+ *
+ * Block elements from the HTML spec that affect document flow
+ * and typically start on a new line.
+ *
+ * List matches the original JavaScript Turndown blockElements array.
+ */
 bool isBlock(gumbo::NodeView node) {
     static constexpr auto kBlockTags = std::to_array<std::string_view>({
         "address", "article", "aside", "audio", "blockquote", "body", "canvas",
@@ -297,7 +316,14 @@ bool isBlock(gumbo::NodeView node) {
     return nodeHasTag(node, kBlockTags);
 }
 
-// True if node is a void element.
+/**
+ * @brief Check if a node is a void element
+ *
+ * Void elements are self-closing and cannot have child content.
+ * From the HTML spec.
+ *
+ * List matches the original JavaScript Turndown voidElements array.
+ */
 bool isVoid(gumbo::NodeView node) {
     static constexpr auto kVoidTags = std::to_array<std::string_view>({
         "area", "base", "br", "col", "command", "embed", "hr",
@@ -322,7 +348,16 @@ bool isCodeNode(gumbo::NodeView node) {
     return parent ? isCodeNode(parent) : false;
 }
 
-// True if the element is meaningful even when blank.
+/**
+ * @brief Check if an element is meaningful even when blank
+ *
+ * These elements have semantic meaning even without content:
+ * - Links (a) may have href
+ * - Tables and cells affect layout
+ * - Media elements (iframe, script, audio, video) may load external content
+ *
+ * List matches the original JavaScript Turndown meaningfulWhenBlankElements.
+ */
 bool isMeaningfulWhenBlank(gumbo::NodeView node) {
     static constexpr auto kMeaningfulTags = std::to_array<std::string_view>({
         "a", "table", "thead", "tbody", "tfoot", "th", "td",
@@ -378,7 +413,7 @@ std::string trimStr(std::string const& s) {
 }
 
 
-// Escapes Markdown-special chars according to Turndown JS advanced rules.
+/// Advanced escape function for Markdown syntax.
 std::string advancedEscape(std::string const& input) {
     auto escape_char = [](std::string& text, char needle, std::string const& replacement) {
         std::string result;

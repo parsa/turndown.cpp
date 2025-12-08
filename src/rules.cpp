@@ -1,4 +1,16 @@
-// turndown.cpp/src/rules.cpp
+/// @file rules.cpp
+/// @brief Implementation of the Rules class for managing conversion rules
+///
+/// This file implements the Rules class which manages the collection of rules
+/// used to convert HTML elements to Markdown. It handles rule matching,
+/// precedence, and the special rules (blank, keep, remove, default).
+///
+/// The implementation follows the original JavaScript Turndown library.
+///
+/// @copyright The MIT License (MIT)
+/// @copyright Copyright (c) 2017 Dom Christie
+/// @copyright C++ port copyright (c) 2025 Parsa Amini
+
 #include "rules.h"
 #include "gumbo_adapter.h"
 #include "node.h"
@@ -29,7 +41,7 @@ std::vector<std::string> normalizeTags(std::vector<std::string> tags) {
 
 } // namespace
 
-// Initializes rule set with built-in blank/keep/default rules.
+/// Initialize the Rules object with built-in rules.
 Rules::Rules(TurndownOptions const& opts)
     : options(opts) {
     blankRule = Rule{
@@ -144,7 +156,7 @@ Rule const* Rules::findRule(std::vector<Rule> const& candidates, gumbo::NodeView
     return nullptr;
 }
 
-// Selects the applicable rule for a node, honoring blank/keep/remove/default order.
+/// Find the appropriate rule for a node.
 Rule const& Rules::forNode(gumbo::NodeView node) const {
     if (!isVoid(node) && isBlank(node)) {
         return blankRule;

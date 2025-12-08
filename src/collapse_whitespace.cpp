@@ -1,4 +1,32 @@
-// turndown.cpp/src/collapse_whitespace.cpp
+/// @file collapse_whitespace.cpp
+/// @brief Whitespace collapsing implementation
+///
+/// The collapseWhitespace function is adapted from collapse-whitespace
+/// by Luc Thevenard.
+///
+/// @copyright The MIT License (MIT)
+/// @copyright Copyright (c) 2014 Luc Thevenard <lucthevenard@gmail.com>
+///
+/// Permission is hereby granted, free of charge, to any person obtaining a copy
+/// of this software and associated documentation files (the "Software"), to deal
+/// in the Software without restriction, including without limitation the rights
+/// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+/// copies of the Software, and to permit persons to whom the Software is
+/// furnished to do so, subject to the following conditions:
+///
+/// The above copyright notice and this permission notice shall be included in
+/// all copies or substantial portions of the Software.
+///
+/// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+/// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+/// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+/// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+/// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+/// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+/// THE SOFTWARE.
+///
+/// @copyright C++ port copyright (c) 2025 Parsa Amini
+
 #include "collapse_whitespace.h"
 #include "gumbo_adapter.h"
 #include "utilities.h"
@@ -11,7 +39,18 @@ namespace turndown_cpp {
 
 namespace {
 
-// True if node is <pre> or (optionally) <code>.
+/**
+ * @brief Check if node is a preformatted element
+ *
+ * Returns true for \<pre\> elements, and optionally for \<code\> elements
+ * when treatCodeAsPre is true. Preformatted elements preserve their
+ * whitespace and should not have whitespace collapsed.
+ *
+ * @param[in] node The node to check
+ * @param[in] treatCodeAsPre Whether to treat \<code\> as preformatted
+ * @retval true if the node is preformatted
+ * @retval false otherwise
+ */
 bool isPreNode(gumbo::NodeView node, bool treatCodeAsPre) {
     if (!node || !node.is_element()) return false;
     std::string tag = node.tag_name();
@@ -19,7 +58,18 @@ bool isPreNode(gumbo::NodeView node, bool treatCodeAsPre) {
     return treatCodeAsPre && tag == "code";
 }
 
-// Traversal helper to walk nodes in document order while honoring pre/code.
+/**
+ * @brief Get the next node in document order
+ *
+ * Returns the next node in the sequence, given the current and previous nodes.
+ * Skips into children unless we just came from a child or the current node
+ * is preformatted (in which case we skip its contents).
+ *
+ * @param[in] prev The previously visited node
+ * @param[in] current The current node
+ * @param[in] treatCodeAsPre Whether to treat \<code\> as preformatted
+ * @return The next node in document order
+ */
 gumbo::NodeView nextNode(gumbo::NodeView prev, gumbo::NodeView current, bool treatCodeAsPre) {
     if (!current) return {};
     bool prevIsParent = prev && prev.parent() == current;
@@ -38,7 +88,14 @@ gumbo::NodeView nextNode(gumbo::NodeView prev, gumbo::NodeView current, bool tre
     return current.parent();
 }
 
-// Returns the node that would follow the given one if it were removed.
+/**
+ * @brief Get the node that would follow if this node were removed
+ *
+ * Used to continue traversal after removing a node from processing.
+ *
+ * @param[in] node The node being removed
+ * @return The next node in the sequence
+ */
 gumbo::NodeView afterRemoval(gumbo::NodeView node) {
     if (!node) return {};
     if (auto sibling = node.next_sibling()) {
@@ -49,7 +106,7 @@ gumbo::NodeView afterRemoval(gumbo::NodeView node) {
 
 } // namespace
 
-// Collapses whitespace in the DOM tree, tracking replacements and omissions.
+/// Collapse whitespace in a DOM tree.
 CollapsedWhitespace collapseWhitespace(gumbo::NodeView element, bool treatCodeAsPre) {
     CollapsedWhitespace result;
     if (!element || isPreNode(element, treatCodeAsPre) || !element.first_child()) {

@@ -17,6 +17,7 @@ option(TURNDOWN_BUILD_CLI "Build the turndown CLI frontend" ON)
 option(TURNDOWN_BUILD_EXAMPLES "Build the example executable" ON)
 option(TURNDOWN_BUILD_TESTING "Build the test suite" ON)
 option(TURNDOWN_BUILD_BENCHMARKS "Build Google Benchmark integration" ON)
+option(TURNDOWN_BUILD_DOCS "Build Doxygen documentation" OFF)
 
 # Include CTest only if testing is enabled
 if(TURNDOWN_BUILD_TESTING)
@@ -55,6 +56,36 @@ if(TURNDOWN_BUILD_TESTING)
     endif()
 
     add_subdirectory(test)
+endif()
+
+# ============================================================================
+# Documentation
+# ============================================================================
+
+if(TURNDOWN_BUILD_DOCS)
+    find_package(Doxygen REQUIRED)
+
+    set(DOXYGEN_OUTPUT_DIR "${CMAKE_CURRENT_BINARY_DIR}/docs")
+
+    configure_file(
+        "${CMAKE_CURRENT_SOURCE_DIR}/Doxyfile.in"
+        "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile"
+        @ONLY
+    )
+
+    add_custom_target(docs
+        COMMAND ${DOXYGEN_EXECUTABLE} "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile"
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM
+    )
+
+    # Optional: Install documentation
+    install(DIRECTORY "${DOXYGEN_OUTPUT_DIR}/html/"
+        DESTINATION ${CMAKE_INSTALL_DOCDIR}
+        OPTIONAL
+        COMPONENT documentation
+    )
 endif()
 
 # ============================================================================

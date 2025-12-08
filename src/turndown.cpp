@@ -1,4 +1,14 @@
-// turndown.cpp/src/turndown.cpp
+/// @file turndown.cpp
+/// @brief Main implementation of TurndownService for HTML to Markdown conversion
+///
+/// This file implements the core TurndownService class and the conversion
+/// pipeline that transforms HTML into Markdown. The implementation closely
+/// follows the original JavaScript Turndown library.
+///
+/// @copyright The MIT License (MIT)
+/// @copyright Copyright (c) 2017 Dom Christie (original JavaScript)
+/// @copyright Copyright (c) 2025 Parsa Amini
+
 #include "turndown.h"
 #include "collapse_whitespace.h"
 #include "commonmark_rules.h"
@@ -18,7 +28,12 @@
 
 namespace turndown_cpp {
 
-// Sets default Markdown conversion options mirroring Turndown JS defaults.
+/**
+ * @brief Initialize options with default values
+ *
+ * Sets default Markdown conversion options that mirror the original
+ * JavaScript Turndown defaults. These can be overridden by users.
+ */
 turndown_cpp::TurndownOptions::TurndownOptions() :
     headingStyle("setext"),
     hr("* * *"),
@@ -45,7 +60,12 @@ turndown_cpp::TurndownOptions::TurndownOptions() :
     })
 {}
 
-// Drops leading CR/LF characters from a string.
+/**
+ * @brief Trim leading newlines from a string
+ *
+ * Removes all leading carriage return and line feed characters.
+ * Used in the join algorithm to normalize newlines between chunks.
+ */
 static std::string trimLeadingNewlines(std::string const& text) {
     std::size_t index = 0;
     while (index < text.size() && (text[index] == '\n' || text[index] == '\r')) {
@@ -54,7 +74,13 @@ static std::string trimLeadingNewlines(std::string const& text) {
     return text.substr(index);
 }
 
-// Drops trailing CR/LF characters from a string.
+/**
+ * @brief Trim trailing newlines from a string
+ *
+ * Removes all trailing carriage return and line feed characters.
+ * Uses a simple loop instead of regex to avoid performance issues
+ * with match-at-end patterns (see original JS issue #370).
+ */
 static std::string trimTrailingNewlines(std::string const& text) {
     std::size_t index = text.size();
     while (index > 0 && (text[index - 1] == '\n' || text[index - 1] == '\r')) {
@@ -63,7 +89,20 @@ static std::string trimTrailingNewlines(std::string const& text) {
     return text.substr(0, index);
 }
 
-// Concatenates two Markdown chunks, normalizing surrounding newlines.
+/**
+ * @brief Join replacement to output with appropriate newlines
+ *
+ * Joins two Markdown chunks together with the appropriate number of
+ * newline separators. The separator is determined by the maximum number
+ * of newlines trimmed from either side, capped at 2 (blank line).
+ *
+ * This ensures proper spacing between block elements while avoiding
+ * excessive whitespace.
+ *
+ * @param[in] output The current conversion output
+ * @param[in] addition The string to append to the output
+ * @return Joined output with proper newline separation
+ */
 static std::string joinChunks(std::string const& output, std::string const& addition) {
     if (output.empty()) return addition;
     if (addition.empty()) return output;
@@ -80,14 +119,17 @@ static std::string joinChunks(std::string const& output, std::string const& addi
     return left + separator + right;
 }
 
-// Dispatches a gumbo node to the appropriate conversion routine.
+// Forward declarations for the recursive conversion functions
 static std::string processNode(gumbo::NodeView node, TurndownOptions const& options, Rules& rules);
-// Converts all children of a node to Markdown and concatenates them.
 static std::string processChildren(gumbo::NodeView parent, TurndownOptions const& options, Rules& rules);
-// Applies the matching rule to produce Markdown for a node, adding flanking whitespace.
 static std::string replacementForNode(gumbo::NodeView node, TurndownOptions const& options, Rules& rules, NodeMetadata const& meta);
 
-// Replaces UTF-8 NBSP bytes with "&nbsp;" entities in-place.
+/**
+ * @brief Encode non-breaking spaces as HTML entities
+ *
+ * Replaces UTF-8 NBSP bytes (0xC2 0xA0) with "&nbsp;" entities.
+ * This preserves non-breaking spaces in the Markdown output.
+ */
 static void encodeNbsp(std::string& text) {
     std::string const nbsp = "\xC2\xA0";
     std::size_t pos = 0;
@@ -97,7 +139,17 @@ static void encodeNbsp(std::string& text) {
     }
 }
 
-// Converts a text-like node to Markdown, escaping unless inside code.
+/**
+ * @brief Convert a text node to Markdown
+ *
+ * Processes a text node, applying Markdown escaping unless the node
+ * is inside a code element (where text should be preserved verbatim).
+ *
+ * @param[in] node The text node to process
+ * @param[in] options Conversion options (for escape function)
+ * @param[in] meta Node metadata (for isCode check)
+ * @return The processed text, escaped if necessary
+ */
 static std::string processTextNode(gumbo::NodeView node, TurndownOptions const& options, NodeMetadata const& meta) {
     std::string text = getNodeText(node);
     if (text.empty()) {
@@ -109,7 +161,19 @@ static std::string processTextNode(gumbo::NodeView node, TurndownOptions const& 
     return options.escapeFunction(text);
 }
 
-// Recursively converts a gumbo node to Markdown.
+/**
+ * @brief Reduce a DOM node to its Markdown string equivalent
+ *
+ * Dispatches processing based on node type:
+ * - Text/Whitespace/CData: Process as text (with escaping)
+ * - Element: Apply matching rule for conversion
+ * - Document: Process all children
+ *
+ * @param[in] node The node to convert
+ * @param[in] options Conversion options
+ * @param[in,out] rules Rule set for element conversion
+ * @return Markdown representation of the node
+ */
 static std::string processNode(gumbo::NodeView node, TurndownOptions const& options, Rules& rules) {
     if (!node) return "";
     switch (node.type()) {
@@ -130,7 +194,17 @@ static std::string processNode(gumbo::NodeView node, TurndownOptions const& opti
     }
 }
 
-// Converts all children of a gumbo node to Markdown.
+/**
+ * @brief Process all children of a node
+ *
+ * Iterates through all child nodes, converting each to Markdown
+ * and joining the results with appropriate spacing.
+ *
+ * @param[in] parent The parent node whose children to process
+ * @param[in] options Conversion options
+ * @param[in,out] rules Rule set for element conversion
+ * @return Combined Markdown of all children
+ */
 static std::string processChildren(gumbo::NodeView parent, TurndownOptions const& options, Rules& rules) {
     if (!parent) return "";
 
@@ -142,7 +216,19 @@ static std::string processChildren(gumbo::NodeView parent, TurndownOptions const
     return output;
 }
 
-// Runs rule replacement for an element, trimming flanking whitespace when needed.
+/**
+ * @brief Convert an element node to its Markdown equivalent
+ *
+ * Applies the matching rule's replacement function to convert an element
+ * to Markdown. Handles flanking whitespace by trimming content and
+ * placing whitespace outside the converted output.
+ *
+ * @param[in] node The element node to convert
+ * @param[in] options Conversion options
+ * @param[in,out] rules Rule set for finding matching rule
+ * @param[in] meta Pre-computed metadata including flanking whitespace
+ * @return Markdown representation with proper whitespace
+ */
 static std::string replacementForNode(gumbo::NodeView node, TurndownOptions const& options, Rules& rules, NodeMetadata const& meta) {
     for (auto const& keep : options.keepTags) {
         if (node.is_element() && keep == node.tag_name()) {
@@ -161,15 +247,24 @@ static std::string replacementForNode(gumbo::NodeView node, TurndownOptions cons
     return meta.flankingWhitespace.leading + converted + meta.flankingWhitespace.trailing;
 }
 
-// Constructs a service with default options.
+/**
+ * @brief Construct a TurndownService with default options
+ */
 TurndownService::TurndownService()
     : options_() {}
 
-// Constructs a service with provided options.
+/**
+ * @brief Construct a TurndownService with custom options
+ */
 TurndownService::TurndownService(TurndownOptions options)
     : options_(std::move(options)) {}
 
-// Mutates options via callback and invalidates cached rules.
+/**
+ * @brief Configure options using a callback
+ *
+ * Allows modifying options after construction. Invalidates cached
+ * rules so they will be rebuilt with new options.
+ */
 TurndownService& TurndownService::configureOptions(std::function<void(TurndownOptions&)> fn) {
     if (fn) {
         fn(options_);
@@ -178,7 +273,13 @@ TurndownService& TurndownService::configureOptions(std::function<void(TurndownOp
     return *this;
 }
 
-// Applies a plugin to the service.
+/**
+ * @brief Add one or more plugins
+ *
+ * Plugins provide a convenient way for developers to apply multiple
+ * extensions. A plugin is just a function that is called with the
+ * TurndownService instance.
+ */
 TurndownService& TurndownService::use(Plugin plugin) {
     if (plugin) {
         plugin(*this);
@@ -186,7 +287,14 @@ TurndownService& TurndownService::use(Plugin plugin) {
     return *this;
 }
 
-// Enqueues a rule addition (applied lazily).
+/**
+ * @brief Add a rule
+ *
+ * Adds a rule to the front of the rules array. The key parameter is
+ * a unique name for the rule for easy reference.
+ *
+ * Returns the TurndownService instance for chaining.
+ */
 TurndownService& TurndownService::addRule(std::string const& key, Rule rule) {
     enqueueRuleMutation([key, rule = std::move(rule)](Rules& rules) mutable {
         rules.addRule(key, std::move(rule));
@@ -207,7 +315,14 @@ TurndownService& TurndownService::registerRuleFactory(RuleFactory factory,
     return *this;
 }
 
-// Adds a keep rule via callback.
+/**
+ * @brief Keep a node (as HTML) that matches the filter
+ *
+ * Determines which elements are to be kept and rendered as HTML.
+ * By default, Turndown does not keep any elements.
+ *
+ * Returns the TurndownService instance for chaining.
+ */
 TurndownService& TurndownService::keep(KeepFilter filter) {
     enqueueRuleMutation([filter = std::move(filter)](Rules& rules) {
         rules.keep(filter);
@@ -231,7 +346,15 @@ TurndownService& TurndownService::keep(std::vector<std::string> const& tags) {
     return *this;
 }
 
-// Adds a remove rule via callback.
+/**
+ * @brief Remove a node that matches the filter
+ *
+ * Determines which elements are to be removed altogether, i.e.,
+ * converted to an empty string. By default, Turndown does not
+ * remove any elements.
+ *
+ * Returns the TurndownService instance for chaining.
+ */
 TurndownService& TurndownService::remove(RemoveFilter filter) {
     enqueueRuleMutation([filter = std::move(filter)](Rules& rules) {
         rules.remove(filter);
@@ -255,7 +378,7 @@ TurndownService& TurndownService::remove(std::vector<std::string> const& tags) {
     return *this;
 }
 
-// Converts an HTML string to Markdown.
+/// The entry point for converting a string to Markdown.
 std::string TurndownService::turndown(std::string const& html) {
     HtmlStringSource source(html);
     return turndown(source.root());
@@ -271,7 +394,7 @@ std::string TurndownService::turndown(DomSource const& dom) {
     return turndown(dom.root());
 }
 
-// Escapes markdown-special chars using configured escape function.
+/// Escape Markdown syntax.
 std::string TurndownService::escape(std::string const& text) const {
     return options_.escapeFunction ? options_.escapeFunction(text) : text;
 }
@@ -318,7 +441,18 @@ void TurndownService::enqueueRuleMutation(std::function<void(Rules&)> fn) {
     }
 }
 
-// Full pipeline: collapse whitespace, process nodes, apply appenders, trim edges.
+/**
+ * @brief Run the full conversion pipeline
+ *
+ * Executes the complete HTML to Markdown conversion:
+ * -# Collapse whitespace in the DOM tree
+ * -# Process all nodes recursively
+ * -# Apply rule append functions (e.g., for reference links)
+ * -# Encode NBSPs and trim edges
+ *
+ * @param[in] root The root node to convert
+ * @return The final Markdown output
+ */
 std::string TurndownService::runPipeline(gumbo::NodeView root) {
     if (!root) return "";
 
