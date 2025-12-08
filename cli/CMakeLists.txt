@@ -1,0 +1,2 @@
+add_executable(turndown_cli main.cpp)
+target_link_libraries(turndown_cli PRIVATE turndown_cpp_lib)
