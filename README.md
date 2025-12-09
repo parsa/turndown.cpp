@@ -82,18 +82,19 @@ cmake --build . --target docs
 | `TURNDOWN_BUILD_TESTING` | ON | Build the test suite |
 | `TURNDOWN_BUILD_BENCHMARKS` | ON | Build Google Benchmark integration |
 | `TURNDOWN_BUILD_DOCS` | OFF | Build Doxygen documentation |
-| `TURNDOWN_PARSER_BACKEND` | gumbo | HTML parser backend (`gumbo` or `tidy`) |
+| `TURNDOWN_PARSER_BACKEND` | gumbo | HTML parser backend (`gumbo`, `tidy`, or `lexbor`) |
 
 ### Parser Backends
 
 The library supports multiple HTML parser backends:
 
-- **gumbo** (default): Uses [Google's Gumbo parser](https://github.com/google/gumbo-parser). Mature and well-tested.
-- **tidy**: Uses [tidy-html5](https://github.com/htacg/tidy-html5). Actively maintained.
+- **gumbo** (default): Uses [Google's Gumbo parser](https://github.com/google/gumbo-parser). Mature and well-tested, though archived.
+- **tidy**: Uses [tidy-html5](https://github.com/htacg/tidy-html5). Actively maintained. Note: normalizes some whitespace.
+- **lexbor**: Uses [Lexbor](https://github.com/lexbor/lexbor). Fast, modern, actively maintained.
 
-To use the tidy backend:
+To use a different backend:
 ```bash
-cmake -DTURNDOWN_PARSER_BACKEND=tidy ..
+cmake -DTURNDOWN_PARSER_BACKEND=lexbor ..  # or tidy, gumbo
 ```
 
 ## Usage

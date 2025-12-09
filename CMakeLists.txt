@@ -20,15 +20,15 @@ option(TURNDOWN_BUILD_BENCHMARKS "Build Google Benchmark integration" ON)
 option(TURNDOWN_BUILD_DOCS "Build Doxygen documentation" OFF)
 
 # Parser backend selection
-set(TURNDOWN_PARSER_BACKEND "gumbo" CACHE STRING "HTML parser backend (gumbo or tidy)")
-set_property(CACHE TURNDOWN_PARSER_BACKEND PROPERTY STRINGS "gumbo" "tidy")
+set(TURNDOWN_PARSER_BACKEND "gumbo" CACHE STRING "HTML parser backend (gumbo, tidy, or lexbor)")
+set_property(CACHE TURNDOWN_PARSER_BACKEND PROPERTY STRINGS "gumbo" "tidy" "lexbor")
 
 # Include CTest only if testing is enabled
 if(TURNDOWN_BUILD_TESTING)
     include(CTest)
 endif()
 
-# Add cmake directory to module path for FindGumbo.cmake and FindTidy.cmake
+# Add cmake directory to module path for Find*.cmake modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # Find the selected parser backend
@@ -40,8 +40,12 @@ elseif(TURNDOWN_PARSER_BACKEND STREQUAL "tidy")
     find_package(Tidy REQUIRED)
     set(TURNDOWN_PARSER_TARGET Tidy::Tidy)
     set(TURNDOWN_PARSER_ADAPTER_SOURCE "tidy_adapter.cpp")
+elseif(TURNDOWN_PARSER_BACKEND STREQUAL "lexbor")
+    find_package(Lexbor REQUIRED)
+    set(TURNDOWN_PARSER_TARGET Lexbor::Lexbor)
+    set(TURNDOWN_PARSER_ADAPTER_SOURCE "lexbor_adapter.cpp")
 else()
-    message(FATAL_ERROR "Unknown parser backend: ${TURNDOWN_PARSER_BACKEND}. Use 'gumbo' or 'tidy'.")
+    message(FATAL_ERROR "Unknown parser backend: ${TURNDOWN_PARSER_BACKEND}. Use 'gumbo', 'tidy', or 'lexbor'.")
 endif()
 
 message(STATUS "Using HTML parser backend: ${TURNDOWN_PARSER_BACKEND}")
@@ -152,9 +156,13 @@ install(EXPORT turndown_cpp_targets
 )
 
 # Install config files and the appropriate Find module for the selected backend
-set(TURNDOWN_FIND_MODULES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindGumbo.cmake")
-if(TURNDOWN_PARSER_BACKEND STREQUAL "tidy")
+set(TURNDOWN_FIND_MODULES)
+if(TURNDOWN_PARSER_BACKEND STREQUAL "gumbo")
+    list(APPEND TURNDOWN_FIND_MODULES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindGumbo.cmake")
+elseif(TURNDOWN_PARSER_BACKEND STREQUAL "tidy")
     list(APPEND TURNDOWN_FIND_MODULES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindTidy.cmake")
+elseif(TURNDOWN_PARSER_BACKEND STREQUAL "lexbor")
+    list(APPEND TURNDOWN_FIND_MODULES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindLexbor.cmake")
 endif()
 
 install(FILES

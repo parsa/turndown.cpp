@@ -2,8 +2,8 @@
 /// @brief Unified DOM adapter that selects the backend at compile time
 ///
 /// This header provides a unified interface to the DOM parser backend.
-/// The actual backend (Gumbo or Tidy) is selected at compile time via
-/// the TURNDOWN_PARSER_BACKEND_GUMBO or TURNDOWN_PARSER_BACKEND_TIDY macros.
+/// The actual backend (Gumbo, Tidy, or Lexbor) is selected at compile time via
+/// the TURNDOWN_PARSER_BACKEND_* macros.
 ///
 /// Usage:
 /// @code
@@ -21,7 +21,9 @@
 
 #include "dom_concepts.h"
 
-#if defined(TURNDOWN_PARSER_BACKEND_TIDY)
+#if defined(TURNDOWN_PARSER_BACKEND_LEXBOR)
+    #include "lexbor_adapter.h"
+#elif defined(TURNDOWN_PARSER_BACKEND_TIDY)
     #include "tidy_adapter.h"
 #else
     // Default to Gumbo
@@ -30,7 +32,10 @@
 
 namespace turndown_cpp::dom {
 
-#if defined(TURNDOWN_PARSER_BACKEND_TIDY)
+#if defined(TURNDOWN_PARSER_BACKEND_LEXBOR)
+    /// @brief The DOM parser backend namespace
+    namespace backend = turndown_cpp::lexbor;
+#elif defined(TURNDOWN_PARSER_BACKEND_TIDY)
     /// @brief The DOM parser backend namespace
     namespace backend = turndown_cpp::tidy;
 #else
