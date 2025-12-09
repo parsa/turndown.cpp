@@ -1,17 +1,20 @@
-/// @file gumbo_adapter.h
-/// @brief Type-safe Gumbo HTML parser adapter
+/// @file tidy_adapter.h
+/// @brief Type-safe Tidy HTML parser adapter
 ///
-/// This file provides the Gumbo-specific implementation of the DOM concepts.
-/// All types use proper Gumbo types (GumboNode*, GumboOutput*, etc.) for
+/// This file provides the Tidy-specific implementation of the DOM concepts.
+/// All types use proper Tidy types (TidyNode, TidyDoc, etc.) for
 /// full type safety at compile time.
 ///
 /// @copyright The MIT License (MIT)
 /// @copyright Copyright (c) 2025 Parsa Amini
 
-#ifndef TURNDOWN_CPP_GUMBO_ADAPTER_H
-#define TURNDOWN_CPP_GUMBO_ADAPTER_H
+#ifndef TURNDOWN_CPP_TIDY_ADAPTER_H
+#define TURNDOWN_CPP_TIDY_ADAPTER_H
 
 #include "dom_concepts.h"
+
+#include <tidy.h>
+#include <tidybuffio.h>
 
 #include <cstddef>
 #include <functional>
@@ -20,9 +23,7 @@
 #include <string_view>
 #include <vector>
 
-#include <gumbo.h>
-
-namespace turndown_cpp::gumbo {
+namespace turndown_cpp::tidy {
 
 // Import types from dom namespace
 using dom::NodeType;
@@ -34,22 +35,22 @@ class NodeView;
 /// @brief Type-safe handle for node identity (used in hash maps)
 struct NodeHandle {
     NodeHandle() = default;
-    explicit NodeHandle(GumboNode* node) : node_(node) {}
+    explicit NodeHandle(TidyNode node) : node_(node) {}
 
     void const* raw() const { return node_; }
-    GumboNode* get() const { return node_; }
+    TidyNode get() const { return node_; }
     explicit operator bool() const { return node_ != nullptr; }
 
     bool operator==(NodeHandle const& other) const { return node_ == other.node_; }
     bool operator!=(NodeHandle const& other) const { return !(*this == other); }
 
 private:
-    GumboNode* node_ = nullptr;
+    TidyNode node_ = nullptr;
 };
 
 static_assert(dom::NodeHandleLike<NodeHandle>, "NodeHandle must satisfy NodeHandleLike");
 
-/// @brief Iterator for child nodes
+/// @brief Iterator for child nodes (linked-list traversal)
 class ChildIterator {
 public:
     using iterator_category = std::input_iterator_tag;
@@ -59,7 +60,7 @@ public:
     using reference = NodeView;
 
     ChildIterator() = default;
-    ChildIterator(GumboVector const* vec, unsigned index);
+    explicit ChildIterator(TidyNode node) : current_(node) {}
 
     NodeView operator*() const;
     ChildIterator& operator++();
@@ -68,8 +69,7 @@ public:
     bool operator!=(ChildIterator const& other) const { return !(*this == other); }
 
 private:
-    GumboVector const* vec_ = nullptr;
-    unsigned index_ = 0;
+    TidyNode current_ = nullptr;
 };
 
 /// @brief Range for iterating over child nodes
@@ -78,18 +78,17 @@ public:
     using iterator = ChildIterator;
 
     ChildRange() = default;
-    explicit ChildRange(GumboNode* parent);
+    explicit ChildRange(TidyNode parent);
 
     ChildIterator begin() const;
     ChildIterator end() const;
     bool empty() const;
-    std::size_t size() const;
 
 private:
-    GumboVector const* vec_ = nullptr;
+    TidyNode first_child_ = nullptr;
 };
 
-/// @brief Iterator for attributes
+/// @brief Iterator for attributes (linked-list traversal)
 class AttributeIterator {
 public:
     using iterator_category = std::input_iterator_tag;
@@ -99,7 +98,7 @@ public:
     using reference = dom::AttributeView;
 
     AttributeIterator() = default;
-    AttributeIterator(GumboVector const* vec, unsigned index);
+    explicit AttributeIterator(TidyAttr attr) : current_(attr) {}
 
     dom::AttributeView operator*() const;
     AttributeIterator& operator++();
@@ -108,8 +107,7 @@ public:
     bool operator!=(AttributeIterator const& other) const { return !(*this == other); }
 
 private:
-    GumboVector const* vec_ = nullptr;
-    unsigned index_ = 0;
+    TidyAttr current_ = nullptr;
 };
 
 /// @brief Range for iterating over element attributes
@@ -118,24 +116,23 @@ public:
     using iterator = AttributeIterator;
 
     AttributeRange() = default;
-    explicit AttributeRange(GumboNode* node);
+    explicit AttributeRange(TidyNode node);
 
     AttributeIterator begin() const;
     AttributeIterator end() const;
     bool empty() const;
-    std::size_t size() const;
 
 private:
-    GumboVector const* vec_ = nullptr;
+    TidyAttr first_attr_ = nullptr;
 };
 
-/// @brief Type-safe view over a Gumbo DOM node
+/// @brief Type-safe view over a Tidy DOM node
 class NodeView {
 public:
     NodeView() = default;
-    explicit NodeView(GumboNode* node) : node_(node) {}
+    explicit NodeView(TidyNode node) : node_(node) {}
 
-    GumboNode* get() const { return node_; }
+    TidyNode get() const { return node_; }
     explicit operator bool() const { return node_ != nullptr; }
     bool operator==(NodeView const& other) const { return node_ == other.node_; }
     bool operator!=(NodeView const& other) const { return node_ != other.node_; }
@@ -171,13 +168,13 @@ public:
     std::string_view text() const;
 
 private:
-    GumboNode* node_ = nullptr;
+    TidyNode node_ = nullptr;
 };
 
 static_assert(dom::DOMNode<NodeView>, "NodeView must satisfy DOMNode concept");
 static_assert(dom::DOMNodeWithHandle<NodeView>, "NodeView must satisfy DOMNodeWithHandle concept");
 
-/// @brief Owns a parsed Gumbo document
+/// @brief Owns a parsed Tidy document
 class Document {
 public:
     Document() = default;
@@ -194,32 +191,34 @@ public:
     NodeView document() const;
     NodeView html() const;
     NodeView body() const;
-    explicit operator bool() const { return output_ != nullptr; }
-    GumboOutput* get() const { return output_; }
+    explicit operator bool() const { return doc_ != nullptr; }
+    TidyDoc get() const { return doc_; }
 
 private:
-    explicit Document(GumboOutput* output) : output_(output) {}
-    GumboOutput* output_ = nullptr;
+    explicit Document(TidyDoc doc) : doc_(doc) {}
+    TidyDoc doc_ = nullptr;
 };
 
 static_assert(dom::DOMDocument<Document, NodeView>, "Document must satisfy DOMDocument concept");
 
 // Utility functions
-std::string_view to_string_view(GumboStringPiece const& piece);
-std::string lookup_tag_name(GumboNode* node);
-bool has_tag(GumboNode* node, std::string_view tag);
-inline bool is_element(GumboNode* node) {
-    return node && node->type == GUMBO_NODE_ELEMENT;
+std::string lookup_tag_name(TidyNode node);
+bool has_tag(TidyNode node, std::string_view tag);
+inline bool is_element(TidyNode node) {
+    if (!node) return false;
+    TidyNodeType type = tidyNodeGetType(node);
+    return type == TidyNode_Start || type == TidyNode_StartEnd;
 }
 
-} // namespace turndown_cpp::gumbo
+} // namespace turndown_cpp::tidy
 
-/// @brief Hash specialization for gumbo::NodeHandle
+/// @brief Hash specialization for tidy::NodeHandle
 template<>
-struct std::hash<turndown_cpp::gumbo::NodeHandle> {
-    std::size_t operator()(turndown_cpp::gumbo::NodeHandle const& handle) const noexcept {
+struct std::hash<turndown_cpp::tidy::NodeHandle> {
+    std::size_t operator()(turndown_cpp::tidy::NodeHandle const& handle) const noexcept {
         return std::hash<void const*>()(handle.raw());
     }
 };
 
-#endif // TURNDOWN_CPP_GUMBO_ADAPTER_H
+#endif // TURNDOWN_CPP_TIDY_ADAPTER_H
+

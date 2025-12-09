@@ -4,7 +4,7 @@
 #include "turndown.h"
 #include "rules.h"
 #include "dom_source.h"
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 
 #include <cctype>
 #include <string>
@@ -179,10 +179,10 @@ TEST(TurndownServiceTest, PluginAddsRule) {
     TurndownService service;
     service.use([](TurndownService& svc) {
         Rule markRule;
-        markRule.filter = [](gumbo::NodeView node, TurndownOptions const&) {
+        markRule.filter = [](dom::NodeView node, TurndownOptions const&) {
             return node.has_tag("mark");
         };
-        markRule.replacement = [](std::string const& content, gumbo::NodeView, TurndownOptions const&) {
+        markRule.replacement = [](std::string const& content, dom::NodeView, TurndownOptions const&) {
             return "==" + content + "==";
         };
         svc.addRule("mark", std::move(markRule));
@@ -192,7 +192,7 @@ TEST(TurndownServiceTest, PluginAddsRule) {
 
 TEST(TurndownServiceTest, KeepPredicateUsesOuterHtml) {
     TurndownService service;
-    service.keep([](gumbo::NodeView node, TurndownOptions const&) {
+    service.keep([](dom::NodeView node, TurndownOptions const&) {
         return node.tag_name() == "custom";
     });
 
@@ -202,7 +202,7 @@ TEST(TurndownServiceTest, KeepPredicateUsesOuterHtml) {
 
 TEST(TurndownServiceTest, RemovePredicateStripsNodes) {
     TurndownService service;
-    service.remove([](gumbo::NodeView node, TurndownOptions const&) {
+    service.remove([](dom::NodeView node, TurndownOptions const&) {
         return node.has_tag("script");
     });
 
@@ -213,10 +213,10 @@ TEST(TurndownServiceTest, RuleFactoryBeforeDefaultsOverridesParagraph) {
     TurndownService service;
     service.registerRuleFactory([](Rules& rules) {
         Rule paragraphRule;
-        paragraphRule.filter = [](gumbo::NodeView node, TurndownOptions const&) {
+        paragraphRule.filter = [](dom::NodeView node, TurndownOptions const&) {
             return node.has_tag("p");
         };
-        paragraphRule.replacement = [](std::string const& content, gumbo::NodeView, TurndownOptions const&) {
+        paragraphRule.replacement = [](std::string const& content, dom::NodeView, TurndownOptions const&) {
             return "[[" + content + "]]";
         };
         rules.addRule("wrappedParagraph", std::move(paragraphRule));
@@ -228,7 +228,7 @@ TEST(TurndownServiceTest, RuleFactoryBeforeDefaultsOverridesParagraph) {
 TEST(TurndownServiceTest, GumboNodeSourceAllowsExistingTree) {
     TurndownService service;
     std::string html = "<ul><li>A</li><li>B</li></ul>";
-    gumbo::Document doc = gumbo::Document::parse(html);
+    dom::Document doc = dom::Document::parse(html);
     GumboNodeSource source(doc.root());
     auto markdown = service.turndown(source);
     EXPECT_NE(markdown.find("*   A"), std::string::npos);

@@ -1,4 +1,10 @@
-#include "gumbo_adapter.h"
+/// @file tidy_adapter.cpp
+/// @brief Type-safe Tidy HTML parser adapter implementation
+///
+/// @copyright The MIT License (MIT)
+/// @copyright Copyright (c) 2025 Parsa Amini
+
+#include "tidy_adapter.h"
 
 #include <algorithm>
 #include <cctype>
@@ -8,37 +14,16 @@
 #include <unordered_map>
 #include <vector>
 
-#include <tidy.h>
-#include <tidybuffio.h>
-
-namespace turndown_cpp::gumbo {
+namespace turndown_cpp::tidy {
 
 namespace {
 
-// TidyNode is const void*, so we need const_cast for void* storage
-inline TidyNode as_tidy_node(void* ptr) {
-    return static_cast<TidyNode>(ptr);
-}
-
-inline TidyDoc as_tidy_doc(void* ptr) {
-    return static_cast<TidyDoc>(ptr);
-}
-
-inline void* to_void_ptr(TidyNode node) {
-    return const_cast<void*>(static_cast<const void*>(node));
-}
-
-inline void* to_void_ptr(TidyDoc doc) {
-    return const_cast<void*>(static_cast<const void*>(doc));
-}
-
 // Thread-local storage for the current document context
-// Needed because some tidy functions require the document
+// Needed because tidy API requires the document for text extraction
 thread_local TidyDoc tl_current_doc = nullptr;
 
 // Thread-local storage for cached text content from text nodes
-// We cache this because tidyNodeGetText requires a buffer allocation
-thread_local std::unordered_map<void*, std::string> tl_text_cache;
+thread_local std::unordered_map<TidyNode, std::string> tl_text_cache;
 
 void set_current_doc(TidyDoc doc) {
     tl_current_doc = doc;
@@ -49,77 +34,42 @@ TidyDoc get_current_doc() {
     return tl_current_doc;
 }
 
-// Decode common HTML entities that tidy encodes in text output
-std::string decode_html_entities(std::string const& input) {
-    std::string result;
-    result.reserve(input.size());
-    
-    for (std::size_t i = 0; i < input.size(); ++i) {
-        if (input[i] == '&') {
-            // Check for common entities
-            if (input.compare(i, 4, "&lt;") == 0) {
-                result += '<';
-                i += 3;
-            } else if (input.compare(i, 4, "&gt;") == 0) {
-                result += '>';
-                i += 3;
-            } else if (input.compare(i, 5, "&amp;") == 0) {
-                result += '&';
-                i += 4;
-            } else if (input.compare(i, 6, "&quot;") == 0) {
-                result += '"';
-                i += 5;
-            } else if (input.compare(i, 6, "&apos;") == 0) {
-                result += '\'';
-                i += 5;
-            } else if (input.compare(i, 6, "&nbsp;") == 0) {
-                result += "\xC2\xA0"; // UTF-8 NBSP
-                i += 5;
-            } else {
-                result += input[i];
-            }
-        } else {
-            result += input[i];
-        }
-    }
-    return result;
-}
-
-std::string_view get_cached_text(void* node_ptr, TidyDoc doc, TidyNode node) {
-    auto it = tl_text_cache.find(node_ptr);
+std::string_view get_cached_text(TidyDoc doc, TidyNode node) {
+    auto it = tl_text_cache.find(node);
     if (it != tl_text_cache.end()) {
         return it->second;
     }
     
     TidyBuffer buf = {0};
-    if (tidyNodeGetText(doc, node, &buf) && buf.bp) {
-        std::string text = decode_html_entities(reinterpret_cast<char*>(buf.bp));
+    // Use tidyNodeGetValue for raw unescaped text content
+    if (tidyNodeGetValue(doc, node, &buf) && buf.bp) {
+        std::string text(reinterpret_cast<char*>(buf.bp));
         tidyBufFree(&buf);
-        auto [insert_it, _] = tl_text_cache.emplace(node_ptr, std::move(text));
+        auto [insert_it, _] = tl_text_cache.emplace(node, std::move(text));
         return insert_it->second;
     }
     tidyBufFree(&buf);
     return {};
 }
 
-NodeType to_node_type(TidyNode node) {
-    if (!node) return NodeType::Unknown;
+dom::NodeType to_node_type(TidyNode node) {
+    if (!node) return dom::NodeType::Unknown;
     TidyNodeType type = tidyNodeGetType(node);
     switch (type) {
         case TidyNode_Root:
-            return NodeType::Document;
+            return dom::NodeType::Document;
         case TidyNode_Start:
         case TidyNode_End:
         case TidyNode_StartEnd:
-            return NodeType::Element;
+            return dom::NodeType::Element;
         case TidyNode_Text:
-            return NodeType::Text;
+            return dom::NodeType::Text;
         case TidyNode_CDATA:
-            return NodeType::CData;
+            return dom::NodeType::CData;
         case TidyNode_Comment:
-            return NodeType::Comment;
+            return dom::NodeType::Comment;
         default:
-            return NodeType::Unknown;
+            return dom::NodeType::Unknown;
     }
 }
 
@@ -131,15 +81,6 @@ std::size_t count_children(TidyNode node) {
     return count;
 }
 
-TidyNode get_child_at_index(TidyNode node, std::size_t index) {
-    std::size_t i = 0;
-    for (TidyNode child = tidyGetChild(node); child; child = tidyGetNext(child)) {
-        if (i == index) return child;
-        ++i;
-    }
-    return nullptr;
-}
-
 std::size_t count_attributes(TidyNode node) {
     std::size_t count = 0;
     for (TidyAttr attr = tidyAttrFirst(node); attr; attr = tidyAttrNext(attr)) {
@@ -148,22 +89,14 @@ std::size_t count_attributes(TidyNode node) {
     return count;
 }
 
-TidyAttr get_attr_at_index(TidyNode node, std::size_t index) {
-    std::size_t i = 0;
-    for (TidyAttr attr = tidyAttrFirst(node); attr; attr = tidyAttrNext(attr)) {
-        if (i == index) return attr;
-        ++i;
-    }
-    return nullptr;
-}
-
 void collect_text_impl(TidyDoc doc, TidyNode node, std::ostringstream& out) {
     if (!node) return;
     TidyNodeType type = tidyNodeGetType(node);
     
     if (type == TidyNode_Text || type == TidyNode_CDATA) {
         TidyBuffer buf = {0};
-        if (tidyNodeGetText(doc, node, &buf)) {
+        // Use tidyNodeGetValue for unescaped text
+        if (tidyNodeGetValue(doc, node, &buf)) {
             if (buf.bp) {
                 out << reinterpret_cast<char*>(buf.bp);
             }
@@ -175,6 +108,10 @@ void collect_text_impl(TidyDoc doc, TidyNode node, std::ostringstream& out) {
         }
     }
 }
+
+} // namespace
+
+// --- Utility functions ---
 
 std::string lookup_tag_name(TidyNode node) {
     if (!node) return "";
@@ -191,21 +128,113 @@ std::string lookup_tag_name(TidyNode node) {
     return result;
 }
 
-} // namespace
+bool has_tag(TidyNode node, std::string_view tag) {
+    return is_element(node) && lookup_tag_name(node) == tag;
+}
+
+// --- ChildIterator implementation ---
+
+NodeView ChildIterator::operator*() const {
+    return NodeView(current_);
+}
+
+ChildIterator& ChildIterator::operator++() {
+    if (current_) {
+        current_ = tidyGetNext(current_);
+    }
+    return *this;
+}
+
+ChildIterator ChildIterator::operator++(int) {
+    ChildIterator tmp = *this;
+    ++*this;
+    return tmp;
+}
+
+bool ChildIterator::operator==(ChildIterator const& other) const {
+    return current_ == other.current_;
+}
+
+// --- ChildRange implementation ---
+
+ChildRange::ChildRange(TidyNode parent) {
+    if (parent) {
+        first_child_ = tidyGetChild(parent);
+    }
+}
+
+ChildIterator ChildRange::begin() const {
+    return ChildIterator(first_child_);
+}
+
+ChildIterator ChildRange::end() const {
+    return ChildIterator(nullptr);
+}
+
+bool ChildRange::empty() const {
+    return first_child_ == nullptr;
+}
+
+// --- AttributeIterator implementation ---
+
+dom::AttributeView AttributeIterator::operator*() const {
+    if (!current_) return {};
+    ctmbstr name = tidyAttrName(current_);
+    ctmbstr value = tidyAttrValue(current_);
+    return dom::AttributeView{
+        name ? std::string_view(name) : std::string_view{},
+        value ? std::string_view(value) : std::string_view{}
+    };
+}
+
+AttributeIterator& AttributeIterator::operator++() {
+    if (current_) {
+        current_ = tidyAttrNext(current_);
+    }
+    return *this;
+}
+
+AttributeIterator AttributeIterator::operator++(int) {
+    AttributeIterator tmp = *this;
+    ++*this;
+    return tmp;
+}
+
+bool AttributeIterator::operator==(AttributeIterator const& other) const {
+    return current_ == other.current_;
+}
+
+// --- AttributeRange implementation ---
+
+AttributeRange::AttributeRange(TidyNode node) {
+    if (node && is_element(node)) {
+        first_attr_ = tidyAttrFirst(node);
+    }
+}
+
+AttributeIterator AttributeRange::begin() const {
+    return AttributeIterator(first_attr_);
+}
+
+AttributeIterator AttributeRange::end() const {
+    return AttributeIterator(nullptr);
+}
+
+bool AttributeRange::empty() const {
+    return first_attr_ == nullptr;
+}
 
 // --- NodeView implementation ---
 
-NodeView::NodeView(void* node) : node_(node) {}
-
-NodeType NodeView::type() const {
-    return to_node_type(as_tidy_node(node_));
+dom::NodeType NodeView::type() const {
+    return to_node_type(node_);
 }
 
 bool NodeView::is_text_like() const {
     switch (type()) {
-        case NodeType::Text:
-        case NodeType::Whitespace:
-        case NodeType::CData:
+        case dom::NodeType::Text:
+        case dom::NodeType::Whitespace:
+        case dom::NodeType::CData:
             return true;
         default:
             return false;
@@ -213,29 +242,25 @@ bool NodeView::is_text_like() const {
 }
 
 NodeView NodeView::parent() const {
-    TidyNode node = as_tidy_node(node_);
-    return node ? NodeView(to_void_ptr(tidyGetParent(node))) : NodeView{};
+    return node_ ? NodeView(tidyGetParent(node_)) : NodeView{};
 }
 
 NodeView NodeView::first_child() const {
-    TidyNode node = as_tidy_node(node_);
-    return node ? NodeView(to_void_ptr(tidyGetChild(node))) : NodeView{};
+    return node_ ? NodeView(tidyGetChild(node_)) : NodeView{};
 }
 
 NodeView NodeView::next_sibling() const {
-    TidyNode node = as_tidy_node(node_);
-    return node ? NodeView(to_void_ptr(tidyGetNext(node))) : NodeView{};
+    return node_ ? NodeView(tidyGetNext(node_)) : NodeView{};
 }
 
 std::vector<NodeView> NodeView::children() const {
     std::vector<NodeView> result;
-    TidyNode node = as_tidy_node(node_);
-    if (!node) return result;
+    if (!node_) return result;
     
-    std::size_t count = count_children(node);
+    std::size_t count = count_children(node_);
     result.reserve(count);
-    for (TidyNode child = tidyGetChild(node); child; child = tidyGetNext(child)) {
-        result.emplace_back(to_void_ptr(child));
+    for (TidyNode child = tidyGetChild(node_); child; child = tidyGetNext(child)) {
+        result.emplace_back(child);
     }
     return result;
 }
@@ -245,11 +270,11 @@ ChildRange NodeView::child_range() const {
 }
 
 std::string NodeView::tag_name() const {
-    return lookup_tag_name(as_tidy_node(node_));
+    return lookup_tag_name(node_);
 }
 
 bool NodeView::has_tag(std::string_view tag) const {
-    return node_ && is_element() && lookup_tag_name(as_tidy_node(node_)) == tag;
+    return node_ && is_element() && lookup_tag_name(node_) == tag;
 }
 
 NodeView NodeView::find_child(std::string_view tag) const {
@@ -272,17 +297,15 @@ NodeView NodeView::first_text_child() const {
 
 std::string NodeView::text_content() const {
     TidyDoc doc = get_current_doc();
-    if (!doc) return "";
+    if (!doc || !node_) return "";
     std::ostringstream out;
-    collect_text_impl(doc, as_tidy_node(node_), out);
+    collect_text_impl(doc, node_, out);
     return out.str();
 }
 
 std::string_view NodeView::attribute(std::string_view name) const {
-    TidyNode node = as_tidy_node(node_);
-    if (!node) return {};
-    
-    for (TidyAttr attr = tidyAttrFirst(node); attr; attr = tidyAttrNext(attr)) {
+    if (!node_ || !tidy::is_element(node_)) return {};
+    for (TidyAttr attr = tidyAttrFirst(node_); attr; attr = tidyAttrNext(attr)) {
         ctmbstr attrName = tidyAttrName(attr);
         if (attrName && name == attrName) {
             ctmbstr value = tidyAttrValue(attr);
@@ -302,19 +325,10 @@ void NodeView::set_text(std::string const& /*text*/) {
 }
 
 std::string_view NodeView::text() const {
-    if (!node_) return {};
-    TidyNode node = as_tidy_node(node_);
-    TidyNodeType type = tidyNodeGetType(node);
-    
-    // Only return text for text-like nodes
-    if (type != TidyNode_Text && type != TidyNode_CDATA && type != TidyNode_Comment) {
-        return {};
-    }
-    
+    if (!node_ || !is_text_like()) return {};
     TidyDoc doc = get_current_doc();
     if (!doc) return {};
-    
-    return get_cached_text(node_, doc, node);
+    return get_cached_text(doc, node_);
 }
 
 AttributeRange NodeView::attribute_range() const {
@@ -323,32 +337,34 @@ AttributeRange NodeView::attribute_range() const {
 
 // --- Document implementation ---
 
-namespace {
-
-struct TidyDocWrapper {
-    TidyDoc doc = nullptr;
-    
-    ~TidyDocWrapper() {
-        if (doc) {
-            tidyRelease(doc);
-        }
-    }
-};
-
-} // namespace
-
-Document::Document(void* output) : output_(output) {}
-
 Document Document::parse(std::string const& html) {
     TidyDoc doc = tidyCreate();
     if (!doc) return Document(nullptr);
     
-    // Configure tidy for parsing (not cleaning)
+    // Configure tidy for parsing - minimal modifications
     tidyOptSetBool(doc, TidyShowWarnings, no);
     tidyOptSetBool(doc, TidyShowInfo, no);
     tidyOptSetBool(doc, TidyQuiet, yes);
     tidyOptSetBool(doc, TidyForceOutput, yes);
     tidyOptSetInt(doc, TidyShowErrors, 0);
+    
+    // Disable wrapping to preserve whitespace
+    tidyOptSetInt(doc, TidyWrapLen, 0);
+    
+    // Don't clean/modify the markup
+    tidyOptSetBool(doc, TidyMakeClean, no);
+    tidyOptSetBool(doc, TidyGDocClean, no);
+    tidyOptSetBool(doc, TidyDropEmptyElems, no);
+    tidyOptSetBool(doc, TidyDropEmptyParas, no);
+    
+    // Treat <code> as a pre-formatted element to preserve whitespace
+    tidyOptSetValue(doc, TidyPreTags, "code");
+    
+    // Preserve newlines in attribute values
+    tidyOptSetBool(doc, TidyLiteralAttribs, yes);
+    
+    // Register common custom elements as inline tags to prevent tidy from stripping them
+    tidyOptSetValue(doc, TidyInlineTags, "custom");
     
     // Parse the HTML
     if (tidyParseString(doc, html.c_str()) < 0) {
@@ -356,150 +372,53 @@ Document Document::parse(std::string const& html) {
         return Document(nullptr);
     }
     
-    // Clean and repair (required for proper DOM structure)
+    // Clean and repair is required for proper DOM structure.
+    // Note: Tidy normalizes whitespace in inline elements during parsing,
+    // which cannot be disabled. This affects whitespace in <code> elements.
     tidyCleanAndRepair(doc);
     
     // Set as current doc for text extraction
     set_current_doc(doc);
     
-    return Document(to_void_ptr(doc));
+    return Document(doc);
 }
 
-Document::Document(Document&& other) noexcept : output_(other.output_) {
-    other.output_ = nullptr;
+Document::Document(Document&& other) noexcept : doc_(other.doc_) {
+    other.doc_ = nullptr;
 }
 
 Document& Document::operator=(Document&& other) noexcept {
     if (this == &other) return *this;
-    if (output_) {
-        tidyRelease(as_tidy_doc(output_));
+    if (doc_) {
+        tidyRelease(doc_);
     }
-    output_ = other.output_;
-    other.output_ = nullptr;
+    doc_ = other.doc_;
+    other.doc_ = nullptr;
     return *this;
 }
 
 Document::~Document() {
-    if (output_) {
-        if (get_current_doc() == as_tidy_doc(output_)) {
-            set_current_doc(nullptr);
-        }
-        tidyRelease(as_tidy_doc(output_));
-        output_ = nullptr;
+    if (doc_) {
+        tidyRelease(doc_);
+        doc_ = nullptr;
     }
 }
 
 NodeView Document::root() const {
-    TidyDoc doc = as_tidy_doc(output_);
-    if (!doc) return {};
-    // Set current doc for text extraction
-    set_current_doc(doc);
-    return NodeView(to_void_ptr(tidyGetRoot(doc)));
+    return doc_ ? NodeView(tidyGetRoot(doc_)) : NodeView{};
 }
 
 NodeView Document::document() const {
+    // Tidy's root is equivalent to the document
     return root();
 }
 
 NodeView Document::html() const {
-    TidyDoc doc = as_tidy_doc(output_);
-    if (!doc) return {};
-    set_current_doc(doc);
-    return NodeView(to_void_ptr(tidyGetHtml(doc)));
+    return doc_ ? NodeView(tidyGetHtml(doc_)) : NodeView{};
 }
 
 NodeView Document::body() const {
-    TidyDoc doc = as_tidy_doc(output_);
-    if (!doc) return {};
-    set_current_doc(doc);
-    return NodeView(to_void_ptr(tidyGetBody(doc)));
+    return doc_ ? NodeView(tidyGetBody(doc_)) : NodeView{};
 }
 
-// --- ChildRange implementation ---
-
-ChildRange::ChildRange(void* parent) : parent_(parent) {
-    if (parent) {
-        count_ = count_children(as_tidy_node(parent));
-    }
-}
-
-ChildRange::Iterator ChildRange::begin() const {
-    return Iterator(parent_, 0, count_);
-}
-
-ChildRange::Iterator ChildRange::end() const {
-    return Iterator(parent_, count_, count_);
-}
-
-bool ChildRange::empty() const {
-    return count_ == 0;
-}
-
-ChildRange::Iterator::Iterator(void* parent, std::size_t index, std::size_t count)
-    : parent_(parent), index_(index), count_(count) {}
-
-NodeView ChildRange::Iterator::operator*() const {
-    if (!parent_ || index_ >= count_) return {};
-    return NodeView(to_void_ptr(get_child_at_index(as_tidy_node(parent_), index_)));
-}
-
-ChildRange::Iterator& ChildRange::Iterator::operator++() {
-    if (index_ < count_) {
-        ++index_;
-    }
-    return *this;
-}
-
-bool ChildRange::Iterator::operator==(Iterator const& other) const {
-    return parent_ == other.parent_ && index_ == other.index_;
-}
-
-// --- AttributeRange implementation ---
-
-AttributeRange::AttributeRange(void* node) : node_(node) {
-    if (node) {
-        count_ = count_attributes(as_tidy_node(node));
-    }
-}
-
-AttributeRange::Iterator AttributeRange::begin() const {
-    return Iterator(node_, 0, count_);
-}
-
-AttributeRange::Iterator AttributeRange::end() const {
-    return Iterator(node_, count_, count_);
-}
-
-bool AttributeRange::empty() const {
-    return count_ == 0;
-}
-
-AttributeRange::Iterator::Iterator(void* node, std::size_t index, std::size_t count)
-    : node_(node), index_(index), count_(count) {}
-
-AttributeView AttributeRange::Iterator::operator*() const {
-    if (!node_ || index_ >= count_) return {};
-    TidyAttr attr = get_attr_at_index(as_tidy_node(node_), index_);
-    if (!attr) return {};
-    
-    ctmbstr name = tidyAttrName(attr);
-    ctmbstr value = tidyAttrValue(attr);
-    return AttributeView{
-        name ? std::string_view(name) : std::string_view{},
-        value ? std::string_view(value) : std::string_view{}
-    };
-}
-
-AttributeRange::Iterator& AttributeRange::Iterator::operator++() {
-    if (index_ < count_) {
-        ++index_;
-    }
-    return *this;
-}
-
-bool AttributeRange::Iterator::operator==(Iterator const& other) const {
-    return node_ == other.node_ && index_ == other.index_;
-}
-
-} // namespace turndown_cpp::gumbo
-
+} // namespace turndown_cpp::tidy

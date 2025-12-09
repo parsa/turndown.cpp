@@ -25,7 +25,7 @@
 /// @copyright C++ port copyright (c) 2025 Parsa Amini
 
 #include "commonmark_rules.h"
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 #include "rules.h"
 #include "turndown.h"
 #include "utilities.h"
@@ -43,7 +43,7 @@
 namespace turndown_cpp {
 
 // Helper function to get next sibling element in Gumbo (ignoring text/whitespace)
-static gumbo::NodeView getNextSiblingView(gumbo::NodeView node) {
+static dom::NodeView getNextSiblingView(dom::NodeView node) {
     for (auto sibling = node.next_sibling(); sibling; sibling = sibling.next_sibling()) {
         if (sibling.is_element()) {
             return sibling;
@@ -53,12 +53,12 @@ static gumbo::NodeView getNextSiblingView(gumbo::NodeView node) {
 }
 
 // Helper function to get parent node
-static gumbo::NodeView getParentView(gumbo::NodeView node) {
+static dom::NodeView getParentView(dom::NodeView node) {
     return node.parent();
 }
 
 // Helper function to check if node has a following element sibling
-static bool hasSiblingsView(gumbo::NodeView node) {
+static bool hasSiblingsView(dom::NodeView node) {
     auto parent = node.parent();
     if (!parent.is_element()) return false;
     for (auto child : parent.child_range()) {
@@ -69,7 +69,7 @@ static bool hasSiblingsView(gumbo::NodeView node) {
 }
 
 // Helper function to get node index in parent (elements only)
-static int getNodeIndexView(gumbo::NodeView node) {
+static int getNodeIndexView(dom::NodeView node) {
     auto parent = node.parent();
     if (!parent.is_element()) return -1;
     int elementIndex = -1;
@@ -83,17 +83,17 @@ static int getNodeIndexView(gumbo::NodeView node) {
     return -1;
 }
 
-static gumbo::NodeView findChildElementView(gumbo::NodeView node, std::string_view tag) {
+static dom::NodeView findChildElementView(dom::NodeView node, std::string_view tag) {
     return node.find_child(tag);
 }
 
-static bool isElementWithNameView(gumbo::NodeView node, std::string_view name) {
+static bool isElementWithNameView(dom::NodeView node, std::string_view name) {
     return node.has_tag(name);
 }
 
-static bool isLastElementChildView(gumbo::NodeView parent, gumbo::NodeView node) {
+static bool isLastElementChildView(dom::NodeView parent, dom::NodeView node) {
     if (!parent.is_element()) return false;
-    gumbo::NodeView lastElement;
+    dom::NodeView lastElement;
     for (auto child : parent.child_range()) {
         if (child.is_element()) {
             lastElement = child;
@@ -107,17 +107,17 @@ static std::string cleanAttribute(std::string_view attribute) {
     return std::regex_replace(std::string(attribute), std::regex(R"((\n+\s*)+)"), "\n");
 }
 
-static bool hasNextSiblingNodeView(gumbo::NodeView node) {
+static bool hasNextSiblingNodeView(dom::NodeView node) {
     return static_cast<bool>(getNextSiblingView(node));
 }
 
 // Pointer wrappers for existing call sites
 void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     rules.addRule("paragraph", {
-        [](gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView node, TurndownOptions const&) {
             return isElementWithNameView(node, "p");
         },
-        [](std::string const& content, gumbo::NodeView, TurndownOptions const&) -> std::string {
+        [](std::string const& content, dom::NodeView, TurndownOptions const&) -> std::string {
             return "\n\n" + content + "\n\n";
         },
         nullptr,
@@ -125,10 +125,10 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("lineBreak", {
-        [](gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView node, TurndownOptions const&) {
             return isElementWithNameView(node, "br");
         },
-        [&options](std::string const&, gumbo::NodeView, TurndownOptions const&) -> std::string {
+        [&options](std::string const&, dom::NodeView, TurndownOptions const&) -> std::string {
             return options.br + "\n";
         },
         nullptr,
@@ -138,10 +138,10 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     for (int i = 1; i <= 6; ++i) {
         std::string tagName = "h" + std::to_string(i);
         rules.addRule(tagName, {
-            [tagName](gumbo::NodeView node, TurndownOptions const&) {
+            [tagName](dom::NodeView node, TurndownOptions const&) {
                 return isElementWithNameView(node, tagName);
             },
-            [&options, i](std::string const& content, gumbo::NodeView, TurndownOptions const&) -> std::string {
+            [&options, i](std::string const& content, dom::NodeView, TurndownOptions const&) -> std::string {
                 if (options.headingStyle == "setext" && i <= 2) {
                     std::string underline = repeatChar((i == 1 ? '=' : '-'), content.length());
                     return "\n\n" + content + "\n" + underline + "\n\n";
@@ -154,10 +154,10 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     }
 
     rules.addRule("blockquote", {
-        [](gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView node, TurndownOptions const&) {
             return isElementWithNameView(node, "blockquote");
         },
-        [](std::string const& content, gumbo::NodeView, TurndownOptions const&) -> std::string {
+        [](std::string const& content, dom::NodeView, TurndownOptions const&) -> std::string {
             std::string trimmed = std::regex_replace(content, std::regex(R"(^\n+|\n+$)"), "");
             std::istringstream iss(trimmed);
             std::string line;
@@ -172,10 +172,10 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("list", {
-        [](gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView node, TurndownOptions const&) {
             return isElementWithNameView(node, "ul") || isElementWithNameView(node, "ol");
         },
-        [](std::string const& content, gumbo::NodeView node, TurndownOptions const&) -> std::string {
+        [](std::string const& content, dom::NodeView node, TurndownOptions const&) -> std::string {
             std::string inner = std::regex_replace(content, std::regex(R"(^\n+)"), "");
             inner = std::regex_replace(inner, std::regex(R"(\n+$)"), "");
             auto parent = getParentView(node);
@@ -191,10 +191,10 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("listItem", {
-        [](gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView node, TurndownOptions const&) {
             return isElementWithNameView(node, "li");
         },
-        [&options](std::string const& content, gumbo::NodeView node, TurndownOptions const&) -> std::string {
+        [&options](std::string const& content, dom::NodeView node, TurndownOptions const&) -> std::string {
             std::string result = std::regex_replace(content, std::regex(R"(^\n+)"), "");
             result = std::regex_replace(result, std::regex(R"(\n+$)"), "\n");
             result = std::regex_replace(result, std::regex(R"(\n)"), "\n    ");
@@ -220,12 +220,12 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("indentedCodeBlock", {
-        [&options](gumbo::NodeView node, TurndownOptions const&) {
+        [&options](dom::NodeView node, TurndownOptions const&) {
             return options.codeBlockStyle == "indented" &&
                    isElementWithNameView(node, "pre") &&
                    findChildElementView(node, "code");
         },
-        [](std::string const&, gumbo::NodeView node, TurndownOptions const&) -> std::string {
+        [](std::string const&, dom::NodeView node, TurndownOptions const&) -> std::string {
             auto codeNode = findChildElementView(node, "code");
             auto source = codeNode ? codeNode : node;
             std::string code = getNodeText(source);
@@ -240,13 +240,13 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("fencedCodeBlock", {
-        [&options](gumbo::NodeView node, TurndownOptions const&) {
+        [&options](dom::NodeView node, TurndownOptions const&) {
             if (options.codeBlockStyle != "fenced") return false;
             if (!isElementWithNameView(node, "pre")) return false;
             return static_cast<bool>(findChildElementView(node, "code"));
         },
-        [&options](std::string const&, gumbo::NodeView node, TurndownOptions const&) -> std::string {
-            gumbo::NodeView codeNode = findChildElementView(node, "code");
+        [&options](std::string const&, dom::NodeView node, TurndownOptions const&) -> std::string {
+            dom::NodeView codeNode = findChildElementView(node, "code");
             std::string className;
             std::string_view classAttr = codeNode.attribute("class");
             if (!classAttr.empty()) className = std::string(classAttr);
@@ -277,10 +277,10 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("horizontalRule", {
-        [](gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView node, TurndownOptions const&) {
             return isElementWithNameView(node, "hr");
         },
-        [&options](std::string const&, gumbo::NodeView, TurndownOptions const&) -> std::string {
+        [&options](std::string const&, dom::NodeView, TurndownOptions const&) -> std::string {
             return "\n\n" + options.hr + "\n\n";
         },
         nullptr,
@@ -288,12 +288,12 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("inlineLink", {
-        [&options](gumbo::NodeView node, TurndownOptions const&) {
+        [&options](dom::NodeView node, TurndownOptions const&) {
             return options.linkStyle == "inlined" &&
                    isElementWithNameView(node, "a") &&
                    !node.attribute("href").empty();
         },
-        [](std::string const& content, gumbo::NodeView node, TurndownOptions const&) -> std::string {
+        [](std::string const& content, dom::NodeView node, TurndownOptions const&) -> std::string {
             std::string href(node.attribute("href"));
             std::string escapedHref;
             escapedHref.reserve(href.size() * 2);
@@ -317,12 +317,12 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
 
     auto referenceStore = std::make_shared<std::vector<std::string>>();
     rules.addRule("referenceLink", {
-        [&options](gumbo::NodeView node, TurndownOptions const&) {
+        [&options](dom::NodeView node, TurndownOptions const&) {
             return options.linkStyle == "referenced" &&
                    isElementWithNameView(node, "a") &&
                    !node.attribute("href").empty();
         },
-        [referenceStore, &options](std::string const& content, gumbo::NodeView node, TurndownOptions const&) -> std::string {
+        [referenceStore, &options](std::string const& content, dom::NodeView node, TurndownOptions const&) -> std::string {
             std::string href(node.attribute("href"));
             std::string title;
             std::string_view titleAttr = node.attribute("title");
@@ -360,10 +360,10 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("emphasis", {
-        [](gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView node, TurndownOptions const&) {
             return isElementWithNameView(node, "em") || isElementWithNameView(node, "i");
         },
-        [&options](std::string const& content, gumbo::NodeView, TurndownOptions const&) -> std::string {
+        [&options](std::string const& content, dom::NodeView, TurndownOptions const&) -> std::string {
             if (trimStr(content).empty()) return "";
             return options.emDelimiter + content + options.emDelimiter;
         },
@@ -372,10 +372,10 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("strong", {
-        [](gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView node, TurndownOptions const&) {
             return isElementWithNameView(node, "strong") || isElementWithNameView(node, "b");
         },
-        [&options](std::string const& content, gumbo::NodeView, TurndownOptions const&) -> std::string {
+        [&options](std::string const& content, dom::NodeView, TurndownOptions const&) -> std::string {
             if (trimStr(content).empty()) return "";
             return options.strongDelimiter + content + options.strongDelimiter;
         },
@@ -384,12 +384,12 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("code", {
-        [](gumbo::NodeView node, TurndownOptions const&) {
-            gumbo::NodeView parent = getParentView(node);
+        [](dom::NodeView node, TurndownOptions const&) {
+            dom::NodeView parent = getParentView(node);
             bool isCodeBlock = parent && isElementWithNameView(parent, "pre") && !hasSiblingsView(node);
             return isElementWithNameView(node, "code") && !isCodeBlock;
         },
-        [](std::string const& content, gumbo::NodeView, TurndownOptions const&) -> std::string {
+        [](std::string const& content, dom::NodeView, TurndownOptions const&) -> std::string {
             if (content.empty()) return "";
             std::string normalized = std::regex_replace(content, std::regex(R"(\r?\n|\r)"), " ");
             std::regex extraSpaceRegex(R"(^`|^ .*?[^ ].* $|`$)");
@@ -415,10 +415,10 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
     });
 
     rules.addRule("image", {
-        [](gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView node, TurndownOptions const&) {
             return isElementWithNameView(node, "img");
         },
-        [](std::string const&, gumbo::NodeView node, TurndownOptions const&) -> std::string {
+        [](std::string const&, dom::NodeView node, TurndownOptions const&) -> std::string {
             std::string alt;
             std::string_view altAttr = node.attribute("alt");
             if (!altAttr.empty()) {

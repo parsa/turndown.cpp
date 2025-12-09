@@ -34,7 +34,7 @@
 #ifndef RULES_H
 #define RULES_H
 
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 
 #include <functional>
 #include <string>
@@ -54,11 +54,11 @@ struct TurndownOptions;
 /// @code{.cpp}
 /// Rule emphasisRule{
 ///     // Filter: matches <em> or <i> elements
-///     [](gumbo::NodeView node, TurndownOptions const&) {
+///     [](dom::NodeView node, TurndownOptions const&) {
 ///         return node.has_tag("em") || node.has_tag("i");
 ///     },
 ///     // Replacement: wraps content in delimiters
-///     [](std::string const& content, gumbo::NodeView, TurndownOptions const& opts) {
+///     [](std::string const& content, dom::NodeView, TurndownOptions const& opts) {
 ///         return opts.emDelimiter + content + opts.emDelimiter;
 ///     },
 ///     nullptr,  // No append function
@@ -75,7 +75,7 @@ struct Rule {
     /// @param[in] options Current conversion options
     /// @retval true if this rule should handle the node
     /// @retval false otherwise
-    std::function<bool(gumbo::NodeView, TurndownOptions const&)> filter;
+    std::function<bool(dom::NodeView, TurndownOptions const&)> filter;
 
     /// @brief Replacement function to convert the element to Markdown
     ///
@@ -86,7 +86,7 @@ struct Rule {
     /// @param[in] node The DOM node being converted
     /// @param[in] options Current conversion options
     /// @return The Markdown string for this element
-    std::function<std::string(std::string const&, gumbo::NodeView, TurndownOptions const&)> replacement;
+    std::function<std::string(std::string const&, dom::NodeView, TurndownOptions const&)> replacement;
 
     /// @brief Optional append function called after all processing
     ///
@@ -152,7 +152,7 @@ public:
 
     /// @brief Add a keep rule with a custom filter function
     /// @param[in] filter Predicate to determine which elements to keep
-    void keep(std::function<bool(gumbo::NodeView, TurndownOptions const&)> filter);
+    void keep(std::function<bool(dom::NodeView, TurndownOptions const&)> filter);
 
     /// @brief Add a remove rule for a single tag
     ///
@@ -167,7 +167,7 @@ public:
 
     /// @brief Add a remove rule with a custom filter function
     /// @param[in] filter Predicate to determine which elements to remove
-    void remove(std::function<bool(gumbo::NodeView, TurndownOptions const&)> filter);
+    void remove(std::function<bool(dom::NodeView, TurndownOptions const&)> filter);
 
     /// @brief Find the appropriate rule for a node
     ///
@@ -177,7 +177,7 @@ public:
     ///
     /// @param[in] node The DOM node to find a rule for
     /// @return Reference to the matching rule
-    Rule const& forNode(gumbo::NodeView node) const;
+    Rule const& forNode(dom::NodeView node) const;
 
     /// @brief Iterate over all rules in the rules array
     ///
@@ -190,23 +190,23 @@ private:
     /// @brief Create a filter function that matches tag names
     /// @param[in] filters Vector of tag names to match (case-insensitive)
     /// @return Filter function that matches any of the tags
-    std::function<bool(gumbo::NodeView, TurndownOptions const&)> makeTagFilter(std::vector<std::string> const& filters) const;
+    std::function<bool(dom::NodeView, TurndownOptions const&)> makeTagFilter(std::vector<std::string> const& filters) const;
 
     /// @brief Add a keep rule with a generated key
     /// @param[in] filter The filter function
     /// @param[in] keySuffix Suffix for the generated key
-    void addKeepRule(std::function<bool(gumbo::NodeView, TurndownOptions const&)> filter, std::string const& keySuffix);
+    void addKeepRule(std::function<bool(dom::NodeView, TurndownOptions const&)> filter, std::string const& keySuffix);
 
     /// @brief Add a remove rule with a generated key
     /// @param[in] filter The filter function
     /// @param[in] keySuffix Suffix for the generated key
-    void addRemoveRule(std::function<bool(gumbo::NodeView, TurndownOptions const&)> filter, std::string const& keySuffix);
+    void addRemoveRule(std::function<bool(dom::NodeView, TurndownOptions const&)> filter, std::string const& keySuffix);
 
     /// @brief Search a rule vector for the first matching rule
     /// @param[in] candidates Vector of rules to search
     /// @param[in] node The node to match against
     /// @return Pointer to matching rule, or nullptr if none found
-    Rule const* findRule(std::vector<Rule> const& candidates, gumbo::NodeView node) const;
+    Rule const* findRule(std::vector<Rule> const& candidates, dom::NodeView node) const;
 
     TurndownOptions const& options;     ///< Reference to conversion options
     std::vector<Rule> rulesArray;       ///< Main rules (added + CommonMark)

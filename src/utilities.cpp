@@ -11,7 +11,7 @@
 /// @copyright Copyright (c) 2017 Dom Christie
 /// @copyright C++ port copyright (c) 2025 Parsa Amini
 
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 #include "turndown.h"
 #include "utf8_helpers.h"
 #include "utilities.h"
@@ -33,12 +33,12 @@ namespace turndown_cpp {
 
 namespace {
 
-std::unordered_map<gumbo::NodeHandle, std::string> const kEmptyCollapsedText{};
-std::unordered_set<gumbo::NodeHandle> const kEmptyCollapsedSkip{};
+std::unordered_map<dom::NodeHandle, std::string> const kEmptyCollapsedText{};
+std::unordered_set<dom::NodeHandle> const kEmptyCollapsedSkip{};
 
 struct CollapseContext {
-    std::unordered_map<gumbo::NodeHandle, std::string> const* text = &kEmptyCollapsedText;
-    std::unordered_set<gumbo::NodeHandle> const* skip = &kEmptyCollapsedSkip;
+    std::unordered_map<dom::NodeHandle, std::string> const* text = &kEmptyCollapsedText;
+    std::unordered_set<dom::NodeHandle> const* skip = &kEmptyCollapsedSkip;
     bool engaged = false;
 };
 
@@ -48,8 +48,8 @@ CollapseContext gCollapse{};
 
 // Sets the optional whitespace collapse context for gumbo nodes.
 void setWhitespaceCollapseContext(
-    std::unordered_map<gumbo::NodeHandle, std::string> const& collapsedText,
-    std::unordered_set<gumbo::NodeHandle> const& nodesToOmit) {
+    std::unordered_map<dom::NodeHandle, std::string> const& collapsedText,
+    std::unordered_set<dom::NodeHandle> const& nodesToOmit) {
     gCollapse.text = &collapsedText;
     gCollapse.skip = &nodesToOmit;
     gCollapse.engaged = true;
@@ -124,7 +124,7 @@ std::vector<Utf8Char> decodeUtf8(std::string const& text) {
 using TagList = std::span<std::string_view const>;
 
 // True if the node's tag matches any in the provided list.
-bool nodeHasTag(gumbo::NodeView node, TagList tags) {
+bool nodeHasTag(dom::NodeView node, TagList tags) {
     if (!node.is_element()) return false;
     std::string tag = node.tag_name();
     return std::any_of(tags.begin(), tags.end(),
@@ -132,25 +132,25 @@ bool nodeHasTag(gumbo::NodeView node, TagList tags) {
         }
 
 // True if any descendant matches a tag in the provided list.
-bool hasDescendantWithTag(gumbo::NodeView node, TagList tags) {
+bool hasDescendantWithTag(dom::NodeView node, TagList tags) {
     if (!node.is_element()) return false;
     return std::any_of(node.child_range().begin(), node.child_range().end(),
-        [&](gumbo::NodeView child) {
+        [&](dom::NodeView child) {
             return nodeHasTag(child, tags) || hasDescendantWithTag(child, tags);
         });
         }
 
 // Collects text content for a node, honoring collapse context omissions.
-std::string collectText(gumbo::NodeView node) {
+std::string collectText(dom::NodeView node) {
     if (!node) return "";
-    gumbo::NodeHandle handle = node.handle();
+    dom::NodeHandle handle = node.handle();
     if (gCollapse.engaged && gCollapse.skip->count(handle)) {
         return "";
     }
     switch (node.type()) {
-        case gumbo::NodeType::Text:
-        case gumbo::NodeType::Whitespace:
-        case gumbo::NodeType::CData: {
+        case dom::NodeType::Text:
+        case dom::NodeType::Whitespace:
+        case dom::NodeType::CData: {
             if (gCollapse.engaged) {
                 auto it = gCollapse.text->find(handle);
                 if (it != gCollapse.text->end()) {
@@ -160,8 +160,8 @@ std::string collectText(gumbo::NodeView node) {
             std::string text(node.text());
             return text;
         }
-        case gumbo::NodeType::Element:
-        case gumbo::NodeType::Document: {
+        case dom::NodeType::Element:
+        case dom::NodeType::Document: {
             std::string text;
             for (auto child : node.child_range()) {
                 text += collectText(child);
@@ -201,29 +201,29 @@ std::string escapeHtml(std::string const& text, bool attribute) {
 }
 
 // Serializes a gumbo node back to HTML.
-void serializeNodeRecursive(gumbo::NodeView node, std::string& output) {
+void serializeNodeRecursive(dom::NodeView node, std::string& output) {
     if (!node) return;
 
     switch (node.type()) {
-        case gumbo::NodeType::Text:
-        case gumbo::NodeType::Whitespace:
-        case gumbo::NodeType::CData: {
+        case dom::NodeType::Text:
+        case dom::NodeType::Whitespace:
+        case dom::NodeType::CData: {
             std::string text(node.text());
             output += escapeHtml(text, false);
             break;
         }
-        case gumbo::NodeType::Comment: {
+        case dom::NodeType::Comment: {
             std::string comment(node.text());
             output += "<!--" + comment + "-->";
             break;
         }
-        case gumbo::NodeType::Document: {
+        case dom::NodeType::Document: {
             for (auto child : node.child_range()) {
                 serializeNodeRecursive(child, output);
             }
             break;
         }
-        case gumbo::NodeType::Element: {
+        case dom::NodeType::Element: {
             std::string tag = node.tag_name();
             output += "<";
             output += tag;
@@ -304,7 +304,7 @@ bool isAsciiWhitespace(char c) {
  *
  * List matches the original JavaScript Turndown blockElements array.
  */
-bool isBlock(gumbo::NodeView node) {
+bool isBlock(dom::NodeView node) {
     static constexpr auto kBlockTags = std::to_array<std::string_view>({
         "address", "article", "aside", "audio", "blockquote", "body", "canvas",
         "center", "dd", "dir", "div", "dl", "dt", "fieldset", "figcaption",
@@ -324,7 +324,7 @@ bool isBlock(gumbo::NodeView node) {
  *
  * List matches the original JavaScript Turndown voidElements array.
  */
-bool isVoid(gumbo::NodeView node) {
+bool isVoid(dom::NodeView node) {
     static constexpr auto kVoidTags = std::to_array<std::string_view>({
         "area", "base", "br", "col", "command", "embed", "hr",
         "img", "input", "keygen", "link", "meta", "param",
@@ -334,14 +334,14 @@ bool isVoid(gumbo::NodeView node) {
 }
 
 // True if node has <pre> tag.
-bool isPre(gumbo::NodeView node) {
+bool isPre(dom::NodeView node) {
     return node.has_tag("pre");
 }
 
 // True if node is a <code> element or has a <code> ancestor.
-bool isCodeNode(gumbo::NodeView node) {
+bool isCodeNode(dom::NodeView node) {
     if (!node) return false;
-    if (node.type() == gumbo::NodeType::Element && node.tag_name() == "code") {
+    if (node.type() == dom::NodeType::Element && node.tag_name() == "code") {
         return true;
     }
     auto parent = node.parent();
@@ -358,7 +358,7 @@ bool isCodeNode(gumbo::NodeView node) {
  *
  * List matches the original JavaScript Turndown meaningfulWhenBlankElements.
  */
-bool isMeaningfulWhenBlank(gumbo::NodeView node) {
+bool isMeaningfulWhenBlank(dom::NodeView node) {
     static constexpr auto kMeaningfulTags = std::to_array<std::string_view>({
         "a", "table", "thead", "tbody", "tfoot", "th", "td",
         "iframe", "script", "audio", "video"
@@ -367,7 +367,7 @@ bool isMeaningfulWhenBlank(gumbo::NodeView node) {
 }
 
 // True if any descendant is meaningful when blank.
-bool hasMeaningfulWhenBlank(gumbo::NodeView node) {
+bool hasMeaningfulWhenBlank(dom::NodeView node) {
     static constexpr auto kMeaningfulTags = std::to_array<std::string_view>({
         "a", "table", "thead", "tbody", "tfoot", "th", "td",
         "iframe", "script", "audio", "video"
@@ -376,7 +376,7 @@ bool hasMeaningfulWhenBlank(gumbo::NodeView node) {
 }
 
 // True if any descendant is a void element.
-bool hasVoid(gumbo::NodeView node) {
+bool hasVoid(dom::NodeView node) {
     static constexpr auto kVoidTags = std::to_array<std::string_view>({
         "area", "base", "br", "col", "command", "embed", "hr",
         "img", "input", "keygen", "link", "meta", "param",
@@ -386,7 +386,7 @@ bool hasVoid(gumbo::NodeView node) {
 }
 
 // Returns concatenated text content from a gumbo node.
-std::string getNodeText(gumbo::NodeView node) {
+std::string getNodeText(dom::NodeView node) {
     return collectText(node);
 }
 
@@ -509,7 +509,7 @@ std::string repeatChar(char c, int count) {
 }
 
 // Serializes a gumbo node to HTML string.
-std::string serializeNode(gumbo::NodeView node) {
+std::string serializeNode(dom::NodeView node) {
     std::string html;
     serializeNodeRecursive(node, html);
     return html;

@@ -1,6 +1,6 @@
 // turndown.cpp/example/main.cpp
 #include "dom_source.h"
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 #include "turndown.h"
 #include "utilities.h"
 
@@ -99,10 +99,10 @@ int main() {
 
     service.use([](TurndownService& svc) {
         Rule markRule;
-        markRule.filter = [](gumbo::NodeView node, TurndownOptions const&) {
+        markRule.filter = [](dom::NodeView node, TurndownOptions const&) {
             return node.has_tag("mark");
         };
-        markRule.replacement = [](std::string const& content, gumbo::NodeView, TurndownOptions const&) {
+        markRule.replacement = [](std::string const& content, dom::NodeView, TurndownOptions const&) {
             return "**" + content + "**";
         };
         svc.addRule("mark", std::move(markRule));

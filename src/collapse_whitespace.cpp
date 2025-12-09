@@ -28,7 +28,7 @@
 /// @copyright C++ port copyright (c) 2025 Parsa Amini
 
 #include "collapse_whitespace.h"
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 #include "utilities.h"
 
 #include <cassert>
@@ -51,7 +51,7 @@ namespace {
  * @retval true if the node is preformatted
  * @retval false otherwise
  */
-bool isPreNode(gumbo::NodeView node, bool treatCodeAsPre) {
+bool isPreNode(dom::NodeView node, bool treatCodeAsPre) {
     if (!node || !node.is_element()) return false;
     std::string tag = node.tag_name();
     if (tag == "pre") return true;
@@ -70,7 +70,7 @@ bool isPreNode(gumbo::NodeView node, bool treatCodeAsPre) {
  * @param[in] treatCodeAsPre Whether to treat \<code\> as preformatted
  * @return The next node in document order
  */
-gumbo::NodeView nextNode(gumbo::NodeView prev, gumbo::NodeView current, bool treatCodeAsPre) {
+dom::NodeView nextNode(dom::NodeView prev, dom::NodeView current, bool treatCodeAsPre) {
     if (!current) return {};
     bool prevIsParent = prev && prev.parent() == current;
     if (prevIsParent || isPreNode(current, treatCodeAsPre)) {
@@ -96,7 +96,7 @@ gumbo::NodeView nextNode(gumbo::NodeView prev, gumbo::NodeView current, bool tre
  * @param[in] node The node being removed
  * @return The next node in the sequence
  */
-gumbo::NodeView afterRemoval(gumbo::NodeView node) {
+dom::NodeView afterRemoval(dom::NodeView node) {
     if (!node) return {};
     if (auto sibling = node.next_sibling()) {
         return sibling;
@@ -107,17 +107,17 @@ gumbo::NodeView afterRemoval(gumbo::NodeView node) {
 } // namespace
 
 /// Collapse whitespace in a DOM tree.
-CollapsedWhitespace collapseWhitespace(gumbo::NodeView element, bool treatCodeAsPre) {
+CollapsedWhitespace collapseWhitespace(dom::NodeView element, bool treatCodeAsPre) {
     CollapsedWhitespace result;
     if (!element || isPreNode(element, treatCodeAsPre) || !element.first_child()) {
         return result;
     }
 
-    gumbo::NodeView prevTextNode;
+    dom::NodeView prevTextNode;
     bool keepLeadingWhitespace = false;
 
-    gumbo::NodeView prevNode;
-    gumbo::NodeView currentNode = nextNode(prevNode, element, treatCodeAsPre);
+    dom::NodeView prevNode;
+    dom::NodeView currentNode = nextNode(prevNode, element, treatCodeAsPre);
 
     while (currentNode && currentNode != element) {
         if (currentNode.is_text_like()) {
@@ -177,7 +177,7 @@ CollapsedWhitespace collapseWhitespace(gumbo::NodeView element, bool treatCodeAs
             continue;
         }
 
-        gumbo::NodeView next = nextNode(prevNode, currentNode, treatCodeAsPre);
+        dom::NodeView next = nextNode(prevNode, currentNode, treatCodeAsPre);
         prevNode = currentNode;
         currentNode = next;
     }

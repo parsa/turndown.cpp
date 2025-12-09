@@ -46,6 +46,10 @@ endif()
 
 message(STATUS "Using HTML parser backend: ${TURNDOWN_PARSER_BACKEND}")
 
+# Set compile definition for backend detection at runtime
+string(TOUPPER "${TURNDOWN_PARSER_BACKEND}" TURNDOWN_PARSER_BACKEND_UPPER)
+add_compile_definitions(TURNDOWN_PARSER_BACKEND_${TURNDOWN_PARSER_BACKEND_UPPER}=1)
+
 # Provide a reusable alias target for consumers
 if(NOT TARGET turndown_cpp::parser)
     add_library(turndown_cpp::parser ALIAS ${TURNDOWN_PARSER_TARGET})

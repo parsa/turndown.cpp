@@ -18,7 +18,7 @@
 #define TURNDOWN_H
 
 #include "dom_source.h"
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 #include "rules.h"
 #include "utilities.h"
 
@@ -135,7 +135,7 @@ struct TurndownOptions {
     /// @param[in] content The processed content of the node
     /// @param[in] node The DOM node being processed
     /// @return The Markdown replacement string
-    std::function<std::string(std::string const&, gumbo::NodeView)> blankReplacement;
+    std::function<std::string(std::string const&, dom::NodeView)> blankReplacement;
 
     /// @brief Replacement function for kept elements
     ///
@@ -146,7 +146,7 @@ struct TurndownOptions {
     /// @param[in] content The processed content of the node
     /// @param[in] node The DOM node being processed
     /// @return The HTML representation of the node
-    std::function<std::string(std::string const&, gumbo::NodeView)> keepReplacement;
+    std::function<std::string(std::string const&, dom::NodeView)> keepReplacement;
 
     /// @brief Default replacement function for unrecognized elements
     ///
@@ -157,7 +157,7 @@ struct TurndownOptions {
     /// @param[in] content The processed content of the node
     /// @param[in] node The DOM node being processed
     /// @return The Markdown replacement string
-    std::function<std::string(std::string const&, gumbo::NodeView)> defaultReplacement;
+    std::function<std::string(std::string const&, dom::NodeView)> defaultReplacement;
 
     /// @brief Constructor that sets default option values
     ///
@@ -195,10 +195,10 @@ class DomSource;
 /// @code{.cpp}
 /// TurndownService service;
 /// service.addRule("strikethrough", {
-///     [](gumbo::NodeView node, TurndownOptions const&) {
+///     [](dom::NodeView node, TurndownOptions const&) {
 ///         return node.has_tag("del") || node.has_tag("s");
 ///     },
-///     [](std::string const& content, gumbo::NodeView, TurndownOptions const&) {
+///     [](std::string const& content, dom::NodeView, TurndownOptions const&) {
 ///         return "~" + content + "~";
 ///     }
 /// });
@@ -222,7 +222,7 @@ public:
     /// @brief Filter function type for keep/remove operations
     ///
     /// A predicate that determines whether a node should be kept or removed.
-    using KeepFilter = std::function<bool(gumbo::NodeView, TurndownOptions const&)>;
+    using KeepFilter = std::function<bool(dom::NodeView, TurndownOptions const&)>;
 
     /// @copydoc KeepFilter
     using RemoveFilter = KeepFilter;
@@ -267,10 +267,10 @@ public:
     ///
     /// @code{.cpp}
     /// service.addRule("strikethrough", {
-    ///     [](gumbo::NodeView node, TurndownOptions const&) {
+    ///     [](dom::NodeView node, TurndownOptions const&) {
     ///         return node.has_tag("del") || node.has_tag("s");
     ///     },
-    ///     [](std::string const& content, gumbo::NodeView, TurndownOptions const&) {
+    ///     [](std::string const& content, dom::NodeView, TurndownOptions const&) {
     ///         return "~" + content + "~";
     ///     }
     /// });
@@ -345,7 +345,7 @@ public:
     /// @brief Convert a DOM node to Markdown
     /// @param[in] root The root node to convert
     /// @return The Markdown representation of the DOM tree
-    std::string turndown(gumbo::NodeView root);
+    std::string turndown(dom::NodeView root);
 
     /// @brief Convert a DomSource to Markdown
     /// @param[in] dom The DOM source to convert
@@ -375,7 +375,7 @@ public:
 private:
     void invalidateRules();
     Rules& ensureRules();
-    std::string runPipeline(gumbo::NodeView root);
+    std::string runPipeline(dom::NodeView root);
     void enqueueRuleMutation(std::function<void(Rules&)> fn);
 
     TurndownOptions options_;

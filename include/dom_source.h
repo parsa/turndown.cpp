@@ -1,7 +1,7 @@
 #ifndef TURNDOWN_CPP_DOM_SOURCE_H
 #define TURNDOWN_CPP_DOM_SOURCE_H
 
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 
 #include <string>
 
@@ -10,15 +10,15 @@ namespace turndown_cpp {
 class DomSource {
 public:
     virtual ~DomSource() = default;
-    virtual gumbo::NodeView root() const = 0;
+    virtual dom::NodeView root() const = 0;
 };
 
 class GumboNodeSource final : public DomSource {
 public:
-    explicit GumboNodeSource(gumbo::NodeView node) : node_(node) {}
-    gumbo::NodeView root() const override { return node_; }
+    explicit GumboNodeSource(dom::NodeView node) : node_(node) {}
+    dom::NodeView root() const override { return node_; }
 private:
-    gumbo::NodeView node_;
+    dom::NodeView node_;
 };
 
 class HtmlStringSource final : public DomSource {
@@ -32,14 +32,14 @@ public:
 
     ~HtmlStringSource() override = default;
 
-    gumbo::NodeView root() const override;
+    dom::NodeView root() const override;
     std::string const& html() const { return html_; }
 
 private:
     void parseIfNeeded() const;
 
     std::string html_;
-    mutable gumbo::Document document_;
+    mutable dom::Document document_;
 };
 
 } // namespace turndown_cpp

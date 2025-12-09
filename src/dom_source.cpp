@@ -1,5 +1,5 @@
 #include "dom_source.h"
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 
 #include <string>
 #include <utility>
@@ -11,11 +11,11 @@ HtmlStringSource::HtmlStringSource(std::string html)
 
 void HtmlStringSource::parseIfNeeded() const {
     if (!document_) {
-        document_ = gumbo::Document::parse(html_);
+        document_ = dom::Document::parse(html_);
     }
 }
 
-gumbo::NodeView HtmlStringSource::root() const {
+dom::NodeView HtmlStringSource::root() const {
     parseIfNeeded();
     return document_.root();
 }

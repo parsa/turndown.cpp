@@ -12,7 +12,7 @@
 /// @copyright C++ port copyright (c) 2025 Parsa Amini
 
 #include "rules.h"
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 #include "node.h"
 #include "turndown.h"
 #include "utilities.h"
@@ -45,8 +45,8 @@ std::vector<std::string> normalizeTags(std::vector<std::string> tags) {
 Rules::Rules(TurndownOptions const& opts)
     : options(opts) {
     blankRule = Rule{
-        [](gumbo::NodeView, TurndownOptions const&) { return true; },
-        [this](std::string const& content, gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView, TurndownOptions const&) { return true; },
+        [this](std::string const& content, dom::NodeView node, TurndownOptions const&) {
             return options.blankReplacement(content, node);
         },
         nullptr,
@@ -54,8 +54,8 @@ Rules::Rules(TurndownOptions const& opts)
     };
 
     keepReplacementRule = Rule{
-        [](gumbo::NodeView, TurndownOptions const&) { return true; },
-        [this](std::string const& content, gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView, TurndownOptions const&) { return true; },
+        [this](std::string const& content, dom::NodeView node, TurndownOptions const&) {
             return options.keepReplacement(content, node);
         },
         nullptr,
@@ -63,8 +63,8 @@ Rules::Rules(TurndownOptions const& opts)
     };
 
     defaultRule = Rule{
-        [](gumbo::NodeView, TurndownOptions const&) { return true; },
-        [this](std::string const& content, gumbo::NodeView node, TurndownOptions const&) {
+        [](dom::NodeView, TurndownOptions const&) { return true; },
+        [this](std::string const& content, dom::NodeView node, TurndownOptions const&) {
             return options.defaultReplacement(content, node);
         },
         nullptr,
@@ -82,9 +82,9 @@ void Rules::addRule(std::string const& key, Rule rule) {
 }
 
 // Builds a filter that matches element tags against provided names.
-std::function<bool(gumbo::NodeView, TurndownOptions const&)> Rules::makeTagFilter(std::vector<std::string> const& filters) const {
+std::function<bool(dom::NodeView, TurndownOptions const&)> Rules::makeTagFilter(std::vector<std::string> const& filters) const {
     auto normalized = normalizeTags(filters);
-    return [normalized](gumbo::NodeView node, TurndownOptions const&) {
+    return [normalized](dom::NodeView node, TurndownOptions const&) {
         if (!node || !node.is_element()) return false;
         std::string tag = node.tag_name();
         for (auto const& value : normalized) {
@@ -97,7 +97,7 @@ std::function<bool(gumbo::NodeView, TurndownOptions const&)> Rules::makeTagFilte
 }
 
 // Adds a keep rule with a generated key suffix.
-void Rules::addKeepRule(std::function<bool(gumbo::NodeView, TurndownOptions const&)> filter, std::string const& keySuffix) {
+void Rules::addKeepRule(std::function<bool(dom::NodeView, TurndownOptions const&)> filter, std::string const& keySuffix) {
     Rule rule;
     rule.key = "keep-" + keySuffix;
     rule.filter = std::move(filter);
@@ -106,11 +106,11 @@ void Rules::addKeepRule(std::function<bool(gumbo::NodeView, TurndownOptions cons
 }
 
 // Adds a remove rule with a generated key suffix.
-void Rules::addRemoveRule(std::function<bool(gumbo::NodeView, TurndownOptions const&)> filter, std::string const& keySuffix) {
+void Rules::addRemoveRule(std::function<bool(dom::NodeView, TurndownOptions const&)> filter, std::string const& keySuffix) {
     Rule rule;
     rule.key = "remove-" + keySuffix;
     rule.filter = std::move(filter);
-    rule.replacement = [](std::string const&, gumbo::NodeView, TurndownOptions const&) {
+    rule.replacement = [](std::string const&, dom::NodeView, TurndownOptions const&) {
         return std::string();
     };
     removeRules.insert(removeRules.begin(), std::move(rule));
@@ -127,7 +127,7 @@ void Rules::keep(std::vector<std::string> const& filters) {
 }
 
 // Keep rule using a custom predicate.
-void Rules::keep(std::function<bool(gumbo::NodeView, TurndownOptions const&)> filter) {
+void Rules::keep(std::function<bool(dom::NodeView, TurndownOptions const&)> filter) {
     addKeepRule(std::move(filter), "custom");
 }
 
@@ -142,12 +142,12 @@ void Rules::remove(std::vector<std::string> const& filters) {
 }
 
 // Remove rule using a custom predicate.
-void Rules::remove(std::function<bool(gumbo::NodeView, TurndownOptions const&)> filter) {
+void Rules::remove(std::function<bool(dom::NodeView, TurndownOptions const&)> filter) {
     addRemoveRule(std::move(filter), "custom");
 }
 
 // Returns the first rule whose filter matches the node, or nullptr.
-Rule const* Rules::findRule(std::vector<Rule> const& candidates, gumbo::NodeView node) const {
+Rule const* Rules::findRule(std::vector<Rule> const& candidates, dom::NodeView node) const {
     for (auto const& rule : candidates) {
         if (rule.filter(node, options)) {
             return &rule;
@@ -157,7 +157,7 @@ Rule const* Rules::findRule(std::vector<Rule> const& candidates, gumbo::NodeView
 }
 
 /// Find the appropriate rule for a node.
-Rule const& Rules::forNode(gumbo::NodeView node) const {
+Rule const& Rules::forNode(dom::NodeView node) const {
     if (!isVoid(node) && isBlank(node)) {
         return blankRule;
     }

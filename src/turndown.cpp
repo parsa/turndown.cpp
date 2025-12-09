@@ -13,7 +13,7 @@
 #include "collapse_whitespace.h"
 #include "commonmark_rules.h"
 #include "dom_source.h"
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 #include "node.h"
 
 #include <algorithm>
@@ -48,14 +48,14 @@ turndown_cpp::TurndownOptions::TurndownOptions() :
     preformattedCode(false),
     escapeFunction(advancedEscape),
     keepTags({}),
-    blankReplacement([](std::string const& content, gumbo::NodeView node) -> std::string {
+    blankReplacement([](std::string const& content, dom::NodeView node) -> std::string {
         return isBlock(node) ? "\n\n" : "";
     }),
-    keepReplacement([](std::string const& content, gumbo::NodeView node) -> std::string {
+    keepReplacement([](std::string const& content, dom::NodeView node) -> std::string {
         (void)content;
         return serializeNode(node);
     }),
-    defaultReplacement([](std::string const& content, gumbo::NodeView node) -> std::string {
+    defaultReplacement([](std::string const& content, dom::NodeView node) -> std::string {
         return isBlock(node) ? "\n\n" + content + "\n\n" : content;
     })
 {}
@@ -120,9 +120,9 @@ static std::string joinChunks(std::string const& output, std::string const& addi
 }
 
 // Forward declarations for the recursive conversion functions
-static std::string processNode(gumbo::NodeView node, TurndownOptions const& options, Rules& rules);
-static std::string processChildren(gumbo::NodeView parent, TurndownOptions const& options, Rules& rules);
-static std::string replacementForNode(gumbo::NodeView node, TurndownOptions const& options, Rules& rules, NodeMetadata const& meta);
+static std::string processNode(dom::NodeView node, TurndownOptions const& options, Rules& rules);
+static std::string processChildren(dom::NodeView parent, TurndownOptions const& options, Rules& rules);
+static std::string replacementForNode(dom::NodeView node, TurndownOptions const& options, Rules& rules, NodeMetadata const& meta);
 
 /**
  * @brief Encode non-breaking spaces as HTML entities
@@ -150,7 +150,7 @@ static void encodeNbsp(std::string& text) {
  * @param[in] meta Node metadata (for isCode check)
  * @return The processed text, escaped if necessary
  */
-static std::string processTextNode(gumbo::NodeView node, TurndownOptions const& options, NodeMetadata const& meta) {
+static std::string processTextNode(dom::NodeView node, TurndownOptions const& options, NodeMetadata const& meta) {
     std::string text = getNodeText(node);
     if (text.empty()) {
         return "";
@@ -174,20 +174,20 @@ static std::string processTextNode(gumbo::NodeView node, TurndownOptions const& 
  * @param[in,out] rules Rule set for element conversion
  * @return Markdown representation of the node
  */
-static std::string processNode(gumbo::NodeView node, TurndownOptions const& options, Rules& rules) {
+static std::string processNode(dom::NodeView node, TurndownOptions const& options, Rules& rules) {
     if (!node) return "";
     switch (node.type()) {
-        case gumbo::NodeType::Text:
-        case gumbo::NodeType::Whitespace:
-        case gumbo::NodeType::CData: {
+        case dom::NodeType::Text:
+        case dom::NodeType::Whitespace:
+        case dom::NodeType::CData: {
             NodeMetadata meta = analyzeNode(node, options.preformattedCode);
             return processTextNode(node, options, meta);
         }
-        case gumbo::NodeType::Element: {
+        case dom::NodeType::Element: {
             NodeMetadata meta = analyzeNode(node, options.preformattedCode);
             return replacementForNode(node, options, rules, meta);
         }
-        case gumbo::NodeType::Document:
+        case dom::NodeType::Document:
             return processChildren(node, options, rules);
         default:
             return "";
@@ -205,7 +205,7 @@ static std::string processNode(gumbo::NodeView node, TurndownOptions const& opti
  * @param[in,out] rules Rule set for element conversion
  * @return Combined Markdown of all children
  */
-static std::string processChildren(gumbo::NodeView parent, TurndownOptions const& options, Rules& rules) {
+static std::string processChildren(dom::NodeView parent, TurndownOptions const& options, Rules& rules) {
     if (!parent) return "";
 
     std::string output;
@@ -229,7 +229,7 @@ static std::string processChildren(gumbo::NodeView parent, TurndownOptions const
  * @param[in] meta Pre-computed metadata including flanking whitespace
  * @return Markdown representation with proper whitespace
  */
-static std::string replacementForNode(gumbo::NodeView node, TurndownOptions const& options, Rules& rules, NodeMetadata const& meta) {
+static std::string replacementForNode(dom::NodeView node, TurndownOptions const& options, Rules& rules, NodeMetadata const& meta) {
     for (auto const& keep : options.keepTags) {
         if (node.is_element() && keep == node.tag_name()) {
             std::string kept = processChildren(node, options, rules);
@@ -385,7 +385,7 @@ std::string TurndownService::turndown(std::string const& html) {
 }
 
 // Converts a gumbo root node to Markdown.
-std::string TurndownService::turndown(gumbo::NodeView root) {
+std::string TurndownService::turndown(dom::NodeView root) {
     return runPipeline(root);
 }
 
@@ -453,7 +453,7 @@ void TurndownService::enqueueRuleMutation(std::function<void(Rules&)> fn) {
  * @param[in] root The root node to convert
  * @return The final Markdown output
  */
-std::string TurndownService::runPipeline(gumbo::NodeView root) {
+std::string TurndownService::runPipeline(dom::NodeView root) {
     if (!root) return "";
 
     Rules& rules = ensureRules();

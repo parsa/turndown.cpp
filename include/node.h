@@ -16,7 +16,7 @@
 #ifndef NODE_H
 #define NODE_H
 
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 
 #include <string>
 
@@ -66,7 +66,7 @@ enum class FlankSide {
 /// @param[in] node The DOM node to analyze
 /// @param[in] preformattedCode Whether code elements preserve whitespace
 /// @return The leading and trailing whitespace
-FlankingWhitespace flankingWhitespace(gumbo::NodeView node, bool preformattedCode);
+FlankingWhitespace flankingWhitespace(dom::NodeView node, bool preformattedCode);
 
 /// @brief Determine if a node is blank (contains only whitespace)
 ///
@@ -79,7 +79,7 @@ FlankingWhitespace flankingWhitespace(gumbo::NodeView node, bool preformattedCod
 /// @param[in] node The DOM node to check
 /// @retval true if the node is blank
 /// @retval false otherwise
-bool isBlank(gumbo::NodeView node);
+bool isBlank(dom::NodeView node);
 
 /// @brief Check if a node is flanked by whitespace on a given side
 ///
@@ -92,7 +92,7 @@ bool isBlank(gumbo::NodeView node);
 /// @param[in] preformattedCode Whether code elements are preformatted
 /// @retval true if the adjacent content ends/starts with ASCII space
 /// @retval false otherwise
-bool isFlankedByWhitespace(FlankSide side, gumbo::NodeView node, bool preformattedCode);
+bool isFlankedByWhitespace(FlankSide side, dom::NodeView node, bool preformattedCode);
 
 /// @brief Analyze a node and compute all metadata
 ///
@@ -103,7 +103,7 @@ bool isFlankedByWhitespace(FlankSide side, gumbo::NodeView node, bool preformatt
 /// @param[in] node The DOM node to analyze
 /// @param[in] preformattedCode Whether code elements preserve whitespace
 /// @return Computed metadata for the node
-NodeMetadata analyzeNode(gumbo::NodeView node, bool preformattedCode);
+NodeMetadata analyzeNode(dom::NodeView node, bool preformattedCode);
 
 } // namespace turndown_cpp
 

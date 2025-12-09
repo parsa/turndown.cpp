@@ -46,7 +46,7 @@
 #ifndef COLLAPSE_WHITESPACE_H
 #define COLLAPSE_WHITESPACE_H
 
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 
 #include <string>
 #include <unordered_map>
@@ -65,13 +65,13 @@ struct CollapsedWhitespace {
     ///
     /// Text nodes in this map should use the mapped string value instead
     /// of their original content.
-    std::unordered_map<gumbo::NodeHandle, std::string> textReplacements;
+    std::unordered_map<dom::NodeHandle, std::string> textReplacements;
 
     /// @brief Set of node handles that should be omitted entirely
     ///
     /// These nodes (typically empty after whitespace collapsing) should
     /// be skipped during text extraction.
-    std::unordered_set<gumbo::NodeHandle> nodesToOmit;
+    std::unordered_set<dom::NodeHandle> nodesToOmit;
 };
 
 /// @brief Collapse whitespace in a DOM tree
@@ -101,7 +101,7 @@ struct CollapsedWhitespace {
 ///
 /// -# At the end:
 ///    - Trailing whitespace from the last text node is trimmed
-CollapsedWhitespace collapseWhitespace(gumbo::NodeView element, bool treatCodeAsPre);
+CollapsedWhitespace collapseWhitespace(dom::NodeView element, bool treatCodeAsPre);
 
 } // namespace turndown_cpp
 

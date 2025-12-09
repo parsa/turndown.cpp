@@ -1,6 +1,6 @@
 #include "turndown.h"
 
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 
 #include <fstream>
 #include <iostream>

@@ -19,7 +19,7 @@
 #ifndef UTILITIES_H
 #define UTILITIES_H
 
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 
 #include <cstdint>
 #include <string>
@@ -47,8 +47,8 @@ struct TurndownOptions; // Forward declaration
 /// @param[in] collapsedText Map of node handles to their collapsed text
 /// @param[in] nodesToOmit Set of node handles that should be skipped
 void setWhitespaceCollapseContext(
-    std::unordered_map<gumbo::NodeHandle, std::string> const& collapsedText,
-    std::unordered_set<gumbo::NodeHandle> const& nodesToOmit);
+    std::unordered_map<dom::NodeHandle, std::string> const& collapsedText,
+    std::unordered_set<dom::NodeHandle> const& nodesToOmit);
 
 /// @brief Clear the whitespace collapse context
 ///
@@ -110,7 +110,7 @@ bool isUnicodeWhitespace(std::uint32_t codepoint);
 /// @param[in] node The DOM node to check
 /// @retval true if the node is a block-level element
 /// @retval false otherwise
-bool isBlock(gumbo::NodeView node);
+bool isBlock(dom::NodeView node);
 
 /// @brief Check if a node is a void element
 ///
@@ -121,13 +121,13 @@ bool isBlock(gumbo::NodeView node);
 /// @param[in] node The DOM node to check
 /// @retval true if the node is a void element
 /// @retval false otherwise
-bool isVoid(gumbo::NodeView node);
+bool isVoid(dom::NodeView node);
 
 /// @brief Check if a node is a \<pre\> element
 /// @param[in] node The DOM node to check
 /// @retval true if the node is a \<pre\> element
 /// @retval false otherwise
-bool isPre(gumbo::NodeView node);
+bool isPre(dom::NodeView node);
 
 /// @brief Check if a node is a \<code\> element or inside one
 ///
@@ -136,7 +136,7 @@ bool isPre(gumbo::NodeView node);
 /// @param[in] node The DOM node to check
 /// @retval true if the node is \<code\> or has a \<code\> ancestor
 /// @retval false otherwise
-bool isCodeNode(gumbo::NodeView node);
+bool isCodeNode(dom::NodeView node);
 
 /// @brief Check if an element is meaningful even when blank
 ///
@@ -147,19 +147,19 @@ bool isCodeNode(gumbo::NodeView node);
 /// @param[in] node The DOM node to check
 /// @retval true if the element is meaningful when blank
 /// @retval false otherwise
-bool isMeaningfulWhenBlank(gumbo::NodeView node);
+bool isMeaningfulWhenBlank(dom::NodeView node);
 
 /// @brief Check if any descendant is meaningful when blank
 /// @param[in] node The DOM node to check
 /// @retval true if any descendant is meaningful when blank
 /// @retval false otherwise
-bool hasMeaningfulWhenBlank(gumbo::NodeView node);
+bool hasMeaningfulWhenBlank(dom::NodeView node);
 
 /// @brief Check if any descendant is a void element
 /// @param[in] node The DOM node to check
 /// @retval true if any descendant is a void element
 /// @retval false otherwise
-bool hasVoid(gumbo::NodeView node);
+bool hasVoid(dom::NodeView node);
 
 /// @} // end of element_classification
 
@@ -173,7 +173,7 @@ bool hasVoid(gumbo::NodeView node);
 ///
 /// @param[in] node The DOM node to extract text from
 /// @return Concatenated text content
-std::string getNodeText(gumbo::NodeView node);
+std::string getNodeText(dom::NodeView node);
 
 /// @} // end of text_extraction
 
@@ -264,7 +264,7 @@ std::string escapeMarkdown(std::string const& text, TurndownOptions const& optio
 ///
 /// @param[in] node The DOM node to serialize
 /// @return HTML string representation
-std::string serializeNode(gumbo::NodeView node);
+std::string serializeNode(dom::NodeView node);
 
 /// @} // end of html_serialization
 

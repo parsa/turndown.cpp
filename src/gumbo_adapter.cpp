@@ -1,3 +1,9 @@
+/// @file gumbo_adapter.cpp
+/// @brief Type-safe Gumbo HTML parser adapter implementation
+///
+/// @copyright The MIT License (MIT)
+/// @copyright Copyright (c) 2025 Parsa Amini
+
 #include "gumbo_adapter.h"
 
 #include <algorithm>
@@ -7,19 +13,9 @@
 #include <string_view>
 #include <vector>
 
-#include <gumbo.h>
-
 namespace turndown_cpp::gumbo {
 
 namespace {
-
-inline GumboNode* as_gumbo_node(void* ptr) {
-    return static_cast<GumboNode*>(ptr);
-}
-
-inline GumboOutput* as_gumbo_output(void* ptr) {
-    return static_cast<GumboOutput*>(ptr);
-}
 
 GumboVector* children_vector(GumboNode* node) {
     if (!node) return nullptr;
@@ -40,16 +36,16 @@ GumboVector* attributes_vector(GumboNode* node) {
     return nullptr;
 }
 
-NodeType to_node_type(GumboNode const* node) {
-    if (!node) return NodeType::Unknown;
+dom::NodeType to_node_type(GumboNode const* node) {
+    if (!node) return dom::NodeType::Unknown;
     switch (node->type) {
-        case GUMBO_NODE_DOCUMENT: return NodeType::Document;
-        case GUMBO_NODE_ELEMENT: return NodeType::Element;
-        case GUMBO_NODE_TEXT: return NodeType::Text;
-        case GUMBO_NODE_WHITESPACE: return NodeType::Whitespace;
-        case GUMBO_NODE_CDATA: return NodeType::CData;
-        case GUMBO_NODE_COMMENT: return NodeType::Comment;
-        default: return NodeType::Unknown;
+        case GUMBO_NODE_DOCUMENT: return dom::NodeType::Document;
+        case GUMBO_NODE_ELEMENT: return dom::NodeType::Element;
+        case GUMBO_NODE_TEXT: return dom::NodeType::Text;
+        case GUMBO_NODE_WHITESPACE: return dom::NodeType::Whitespace;
+        case GUMBO_NODE_CDATA: return dom::NodeType::CData;
+        case GUMBO_NODE_COMMENT: return dom::NodeType::Comment;
+        default: return dom::NodeType::Unknown;
     }
 }
 
@@ -74,6 +70,10 @@ void collect_text_impl(GumboNode* node, std::ostringstream& out) {
             break;
     }
 }
+
+} // namespace
+
+// --- Utility functions ---
 
 std::string_view to_string_view(GumboStringPiece const& piece) {
     if (!piece.data || piece.length == 0) {
@@ -105,21 +105,118 @@ std::string lookup_tag_name(GumboNode* node) {
     return name;
 }
 
-} // namespace
+bool has_tag(GumboNode* node, std::string_view tag) {
+    return is_element(node) && lookup_tag_name(node) == tag;
+}
+
+// --- ChildIterator implementation ---
+
+ChildIterator::ChildIterator(GumboVector const* vec, unsigned index)
+    : vec_(vec), index_(index) {}
+
+NodeView ChildIterator::operator*() const {
+    if (!vec_ || index_ >= vec_->length) return {};
+    return NodeView(static_cast<GumboNode*>(vec_->data[index_]));
+}
+
+ChildIterator& ChildIterator::operator++() {
+    ++index_;
+    return *this;
+}
+
+ChildIterator ChildIterator::operator++(int) {
+    ChildIterator tmp = *this;
+    ++*this;
+    return tmp;
+}
+
+bool ChildIterator::operator==(ChildIterator const& other) const {
+    return vec_ == other.vec_ && index_ == other.index_;
+}
+
+// --- ChildRange implementation ---
+
+ChildRange::ChildRange(GumboNode* parent) {
+    vec_ = children_vector(parent);
+}
+
+ChildIterator ChildRange::begin() const {
+    return ChildIterator(vec_, 0);
+}
+
+ChildIterator ChildRange::end() const {
+    return ChildIterator(vec_, vec_ ? vec_->length : 0);
+}
+
+bool ChildRange::empty() const {
+    return !vec_ || vec_->length == 0;
+}
+
+std::size_t ChildRange::size() const {
+    return vec_ ? vec_->length : 0;
+}
+
+// --- AttributeIterator implementation ---
+
+AttributeIterator::AttributeIterator(GumboVector const* vec, unsigned index)
+    : vec_(vec), index_(index) {}
+
+dom::AttributeView AttributeIterator::operator*() const {
+    if (!vec_ || index_ >= vec_->length) return {};
+    GumboAttribute* attr = static_cast<GumboAttribute*>(vec_->data[index_]);
+    std::string_view name = attr->name ? std::string_view(attr->name) : std::string_view{};
+    std::string_view value = attr->value ? std::string_view(attr->value) : std::string_view{};
+    return dom::AttributeView{name, value};
+}
+
+AttributeIterator& AttributeIterator::operator++() {
+    ++index_;
+    return *this;
+}
+
+AttributeIterator AttributeIterator::operator++(int) {
+    AttributeIterator tmp = *this;
+    ++*this;
+    return tmp;
+}
+
+bool AttributeIterator::operator==(AttributeIterator const& other) const {
+    return vec_ == other.vec_ && index_ == other.index_;
+}
+
+// --- AttributeRange implementation ---
+
+AttributeRange::AttributeRange(GumboNode* node) {
+    vec_ = attributes_vector(node);
+}
+
+AttributeIterator AttributeRange::begin() const {
+    return AttributeIterator(vec_, 0);
+}
+
+AttributeIterator AttributeRange::end() const {
+    return AttributeIterator(vec_, vec_ ? vec_->length : 0);
+}
+
+bool AttributeRange::empty() const {
+    return !vec_ || vec_->length == 0;
+}
+
+std::size_t AttributeRange::size() const {
+    return vec_ ? vec_->length : 0;
+}
 
 // --- NodeView implementation ---
 
-NodeView::NodeView(void* node) : node_(node) {}
-
-NodeType NodeView::type() const {
-    return to_node_type(as_gumbo_node(node_));
+dom::NodeType NodeView::type() const {
+    return to_node_type(node_);
 }
 
 bool NodeView::is_text_like() const {
     switch (type()) {
-        case NodeType::Text:
-        case NodeType::Whitespace:
-        case NodeType::CData:
+        case dom::NodeType::Text:
+        case dom::NodeType::Whitespace:
+        case dom::NodeType::CData:
             return true;
         default:
             return false;
@@ -127,26 +224,24 @@ bool NodeView::is_text_like() const {
 }
 
 NodeView NodeView::parent() const {
-    auto* node = as_gumbo_node(node_);
-    return node ? NodeView(node->parent) : NodeView{};
+    return node_ ? NodeView(node_->parent) : NodeView{};
 }
 
 NodeView NodeView::first_child() const {
-    if (auto* vec = children_vector(as_gumbo_node(node_))) {
+    if (auto* vec = children_vector(node_)) {
         if (vec->length > 0) {
-            return NodeView(vec->data[0]);
+            return NodeView(static_cast<GumboNode*>(vec->data[0]));
         }
     }
     return {};
 }
 
 NodeView NodeView::next_sibling() const {
-    auto* node = as_gumbo_node(node_);
-    if (!node || !node->parent) return {};
-    if (auto* siblings = children_vector(node->parent)) {
+    if (!node_ || !node_->parent) return {};
+    if (auto* siblings = children_vector(node_->parent)) {
         for (unsigned i = 0; i < siblings->length; ++i) {
-            if (siblings->data[i] == node && i + 1 < siblings->length) {
-                return NodeView(siblings->data[i + 1]);
+            if (siblings->data[i] == node_ && i + 1 < siblings->length) {
+                return NodeView(static_cast<GumboNode*>(siblings->data[i + 1]));
             }
         }
     }
@@ -155,10 +250,10 @@ NodeView NodeView::next_sibling() const {
 
 std::vector<NodeView> NodeView::children() const {
     std::vector<NodeView> result;
-    if (auto* vec = children_vector(as_gumbo_node(node_))) {
+    if (auto* vec = children_vector(node_)) {
         result.reserve(vec->length);
         for (unsigned i = 0; i < vec->length; ++i) {
-            result.emplace_back(vec->data[i]);
+            result.emplace_back(static_cast<GumboNode*>(vec->data[i]));
         }
     }
     return result;
@@ -169,11 +264,11 @@ ChildRange NodeView::child_range() const {
 }
 
 std::string NodeView::tag_name() const {
-    return lookup_tag_name(as_gumbo_node(node_));
+    return lookup_tag_name(node_);
 }
 
 bool NodeView::has_tag(std::string_view tag) const {
-    return node_ && is_element() && lookup_tag_name(as_gumbo_node(node_)) == tag;
+    return node_ && is_element() && lookup_tag_name(node_) == tag;
 }
 
 NodeView NodeView::find_child(std::string_view tag) const {
@@ -196,14 +291,13 @@ NodeView NodeView::first_text_child() const {
 
 std::string NodeView::text_content() const {
     std::ostringstream out;
-    collect_text_impl(as_gumbo_node(node_), out);
+    collect_text_impl(node_, out);
     return out.str();
 }
 
 std::string_view NodeView::attribute(std::string_view name) const {
-    auto* node = as_gumbo_node(node_);
-    if (!node || node->type != GUMBO_NODE_ELEMENT) return {};
-    GumboAttribute* attr = gumbo_get_attribute(&node->v.element.attributes, std::string(name).c_str());
+    if (!node_ || node_->type != GUMBO_NODE_ELEMENT) return {};
+    GumboAttribute* attr = gumbo_get_attribute(&node_->v.element.attributes, std::string(name).c_str());
     if (!attr || !attr->value) return {};
     return attr->value;
 }
@@ -213,22 +307,20 @@ bool NodeView::has_attribute(std::string_view name) const {
 }
 
 void NodeView::set_text(std::string const& text) {
-    auto* node = as_gumbo_node(node_);
-    if (!node) return;
-    if (node->type == GUMBO_NODE_TEXT || node->type == GUMBO_NODE_WHITESPACE || node->type == GUMBO_NODE_CDATA) {
-        node->v.text.text = const_cast<char*>(text.c_str());
+    if (!node_) return;
+    if (node_->type == GUMBO_NODE_TEXT || node_->type == GUMBO_NODE_WHITESPACE || node_->type == GUMBO_NODE_CDATA) {
+        node_->v.text.text = const_cast<char*>(text.c_str());
     }
 }
 
 std::string_view NodeView::text() const {
-    auto* node = as_gumbo_node(node_);
-    if (!node) return {};
-    switch (node->type) {
+    if (!node_) return {};
+    switch (node_->type) {
         case GUMBO_NODE_TEXT:
         case GUMBO_NODE_WHITESPACE:
         case GUMBO_NODE_CDATA:
         case GUMBO_NODE_COMMENT:
-            return node->v.text.text ? std::string_view(node->v.text.text) : std::string_view{};
+            return node_->v.text.text ? std::string_view(node_->v.text.text) : std::string_view{};
         default:
             return {};
     }
@@ -239,8 +331,6 @@ AttributeRange NodeView::attribute_range() const {
 }
 
 // --- Document implementation ---
-
-Document::Document(void* output) : output_(output) {}
 
 Document Document::parse(std::string const& html) {
     return Document(gumbo_parse(html.c_str()));
@@ -253,7 +343,7 @@ Document::Document(Document&& other) noexcept : output_(other.output_) {
 Document& Document::operator=(Document&& other) noexcept {
     if (this == &other) return *this;
     if (output_) {
-        gumbo_destroy_output(&kGumboDefaultOptions, as_gumbo_output(output_));
+        gumbo_destroy_output(&kGumboDefaultOptions, output_);
     }
     output_ = other.output_;
     other.output_ = nullptr;
@@ -262,19 +352,17 @@ Document& Document::operator=(Document&& other) noexcept {
 
 Document::~Document() {
     if (output_) {
-        gumbo_destroy_output(&kGumboDefaultOptions, as_gumbo_output(output_));
+        gumbo_destroy_output(&kGumboDefaultOptions, output_);
         output_ = nullptr;
     }
 }
 
 NodeView Document::root() const {
-    auto* output = as_gumbo_output(output_);
-    return output ? NodeView(output->root) : NodeView{};
+    return output_ ? NodeView(output_->root) : NodeView{};
 }
 
 NodeView Document::document() const {
-    auto* output = as_gumbo_output(output_);
-    return output ? NodeView(output->document) : NodeView{};
+    return output_ ? NodeView(output_->document) : NodeView{};
 }
 
 NodeView Document::html() const {
@@ -295,97 +383,6 @@ NodeView Document::body() const {
         }
     }
     return {};
-}
-
-// --- ChildRange implementation ---
-
-ChildRange::ChildRange(void* parent) : parent_(parent) {
-    if (auto* vec = children_vector(as_gumbo_node(parent))) {
-        count_ = vec->length;
-    }
-}
-
-ChildRange::Iterator ChildRange::begin() const {
-    return Iterator(parent_, 0, count_);
-}
-
-ChildRange::Iterator ChildRange::end() const {
-    return Iterator(parent_, count_, count_);
-}
-
-bool ChildRange::empty() const {
-    return count_ == 0;
-}
-
-ChildRange::Iterator::Iterator(void* parent, std::size_t index, std::size_t count)
-    : parent_(parent), index_(index), count_(count) {}
-
-NodeView ChildRange::Iterator::operator*() const {
-    if (!parent_ || index_ >= count_) return {};
-    if (auto* vec = children_vector(as_gumbo_node(parent_))) {
-        if (index_ < vec->length) {
-            return NodeView(vec->data[index_]);
-        }
-    }
-    return {};
-}
-
-ChildRange::Iterator& ChildRange::Iterator::operator++() {
-    if (index_ < count_) {
-        ++index_;
-    }
-    return *this;
-}
-
-bool ChildRange::Iterator::operator==(Iterator const& other) const {
-    return parent_ == other.parent_ && index_ == other.index_;
-}
-
-// --- AttributeRange implementation ---
-
-AttributeRange::AttributeRange(void* node) : node_(node) {
-    if (auto* vec = attributes_vector(as_gumbo_node(node))) {
-        count_ = vec->length;
-    }
-}
-
-AttributeRange::Iterator AttributeRange::begin() const {
-    return Iterator(node_, 0, count_);
-}
-
-AttributeRange::Iterator AttributeRange::end() const {
-    return Iterator(node_, count_, count_);
-}
-
-bool AttributeRange::empty() const {
-    return count_ == 0;
-}
-
-AttributeRange::Iterator::Iterator(void* node, std::size_t index, std::size_t count)
-    : node_(node), index_(index), count_(count) {}
-
-AttributeView AttributeRange::Iterator::operator*() const {
-    if (!node_ || index_ >= count_) return {};
-    if (auto* vec = attributes_vector(as_gumbo_node(node_))) {
-        if (index_ < vec->length) {
-            GumboAttribute* attr = static_cast<GumboAttribute*>(vec->data[index_]);
-            std::string_view name = attr->name ? std::string_view(attr->name) : std::string_view{};
-            std::string_view value = attr->value ? std::string_view(attr->value) : std::string_view{};
-            return AttributeView{name, value};
-        }
-    }
-    return {};
-}
-
-AttributeRange::Iterator& AttributeRange::Iterator::operator++() {
-    if (index_ < count_) {
-        ++index_;
-    }
-    return *this;
-}
-
-bool AttributeRange::Iterator::operator==(Iterator const& other) const {
-    return node_ == other.node_ && index_ == other.index_;
 }
 
 } // namespace turndown_cpp::gumbo

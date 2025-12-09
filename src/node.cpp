@@ -12,7 +12,7 @@
 /// @copyright C++ port copyright (c) 2025 Parsa Amini
 
 #include "node.h"
-#include "gumbo_adapter.h"
+#include "dom_adapter.h"
 #include "utf8_helpers.h"
 #include "utilities.h"
 
@@ -183,7 +183,7 @@ bool endsWithAsciiSpace(std::string const& text) {
 }
 
 // Returns the zero-based index of a node within its parent, or -1 if absent.
-int childIndex(gumbo::NodeView node) {
+int childIndex(dom::NodeView node) {
     auto parent = node.parent();
     if (!parent.is_element()) return -1;
     auto range = parent.child_range();
@@ -195,11 +195,11 @@ int childIndex(gumbo::NodeView node) {
 }
 
 // Returns the adjacent sibling on the requested side, or empty if none.
-gumbo::NodeView adjacentSibling(gumbo::NodeView node, FlankSide side) {
+dom::NodeView adjacentSibling(dom::NodeView node, FlankSide side) {
     auto parent = node.parent();
     if (!parent.is_element()) return {};
     auto range = parent.child_range();
-    gumbo::NodeView previous{};
+    dom::NodeView previous{};
     bool found = false;
     for (auto child : range) {
         if (found) {
@@ -219,7 +219,7 @@ gumbo::NodeView adjacentSibling(gumbo::NodeView node, FlankSide side) {
 }
 
 // Returns the text content of a sibling node (empty if null).
-std::string siblingTextContent(gumbo::NodeView node) {
+std::string siblingTextContent(dom::NodeView node) {
     if (!node) return "";
     return getNodeText(node);
 }
@@ -252,7 +252,7 @@ static std::string encodeNbsp(std::string const& text) {
 }
 
 /// Compute flanking whitespace for a node.
-FlankingWhitespace flankingWhitespace(gumbo::NodeView node, bool preformattedCode) {
+FlankingWhitespace flankingWhitespace(dom::NodeView node, bool preformattedCode) {
     FlankingWhitespace ws{"", ""};
     if (!node) return ws;
     if (isBlock(node) || (preformattedCode && isCodeNode(node))) {
@@ -279,7 +279,7 @@ FlankingWhitespace flankingWhitespace(gumbo::NodeView node, bool preformattedCod
 }
 
 /// Determine if a node is blank (contains only whitespace).
-bool isBlank(gumbo::NodeView node) {
+bool isBlank(dom::NodeView node) {
     if (!node) return false;
     if (node.is_element()) {
         if (isVoid(node) || isMeaningfulWhenBlank(node)) return false;
@@ -300,20 +300,20 @@ bool isBlank(gumbo::NodeView node) {
 }
 
 /// Check if node is flanked by whitespace on one side.
-bool isFlankedByWhitespace(FlankSide side, gumbo::NodeView node, bool preformattedCode) {
-    gumbo::NodeView sibling = adjacentSibling(node, side);
+bool isFlankedByWhitespace(FlankSide side, dom::NodeView node, bool preformattedCode) {
+    dom::NodeView sibling = adjacentSibling(node, side);
     if (!sibling) return false;
 
-    if (sibling.type() == gumbo::NodeType::Element) {
+    if (sibling.type() == dom::NodeType::Element) {
         if (preformattedCode && isCodeNode(sibling)) {
             return false;
         }
         if (isBlock(sibling)) {
             return false;
         }
-    } else if (sibling.type() != gumbo::NodeType::Text &&
-               sibling.type() != gumbo::NodeType::Whitespace &&
-               sibling.type() != gumbo::NodeType::CData) {
+    } else if (sibling.type() != dom::NodeType::Text &&
+               sibling.type() != dom::NodeType::Whitespace &&
+               sibling.type() != dom::NodeType::CData) {
         return false;
     }
 
@@ -323,7 +323,7 @@ bool isFlankedByWhitespace(FlankSide side, gumbo::NodeView node, bool preformatt
 }
 
 /// Analyze a node and compute all metadata.
-NodeMetadata analyzeNode(gumbo::NodeView node, bool preformattedCode) {
+NodeMetadata analyzeNode(dom::NodeView node, bool preformattedCode) {
     NodeMetadata meta;
     if (!node) return meta;
     meta.isBlock = isBlock(node);
