@@ -82,6 +82,19 @@ cmake --build . --target docs
 | `TURNDOWN_BUILD_TESTING` | ON | Build the test suite |
 | `TURNDOWN_BUILD_BENCHMARKS` | ON | Build Google Benchmark integration |
 | `TURNDOWN_BUILD_DOCS` | OFF | Build Doxygen documentation |
+| `TURNDOWN_PARSER_BACKEND` | gumbo | HTML parser backend (`gumbo` or `tidy`) |
+
+### Parser Backends
+
+The library supports multiple HTML parser backends:
+
+- **gumbo** (default): Uses [Google's Gumbo parser](https://github.com/google/gumbo-parser). Mature and well-tested.
+- **tidy**: Uses [tidy-html5](https://github.com/htacg/tidy-html5). Actively maintained.
+
+To use the tidy backend:
+```bash
+cmake -DTURNDOWN_PARSER_BACKEND=tidy ..
+```
 
 ## Usage
 

@@ -19,19 +19,36 @@ option(TURNDOWN_BUILD_TESTING "Build the test suite" ON)
 option(TURNDOWN_BUILD_BENCHMARKS "Build Google Benchmark integration" ON)
 option(TURNDOWN_BUILD_DOCS "Build Doxygen documentation" OFF)
 
+# Parser backend selection
+set(TURNDOWN_PARSER_BACKEND "gumbo" CACHE STRING "HTML parser backend (gumbo or tidy)")
+set_property(CACHE TURNDOWN_PARSER_BACKEND PROPERTY STRINGS "gumbo" "tidy")
+
 # Include CTest only if testing is enabled
 if(TURNDOWN_BUILD_TESTING)
     include(CTest)
 endif()
 
-# Add cmake directory to module path for FindGumbo.cmake
+# Add cmake directory to module path for FindGumbo.cmake and FindTidy.cmake
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
-find_package(Gumbo REQUIRED)
+# Find the selected parser backend
+if(TURNDOWN_PARSER_BACKEND STREQUAL "gumbo")
+    find_package(Gumbo REQUIRED)
+    set(TURNDOWN_PARSER_TARGET Gumbo::Gumbo)
+    set(TURNDOWN_PARSER_ADAPTER_SOURCE "gumbo_adapter.cpp")
+elseif(TURNDOWN_PARSER_BACKEND STREQUAL "tidy")
+    find_package(Tidy REQUIRED)
+    set(TURNDOWN_PARSER_TARGET Tidy::Tidy)
+    set(TURNDOWN_PARSER_ADAPTER_SOURCE "tidy_adapter.cpp")
+else()
+    message(FATAL_ERROR "Unknown parser backend: ${TURNDOWN_PARSER_BACKEND}. Use 'gumbo' or 'tidy'.")
+endif()
+
+message(STATUS "Using HTML parser backend: ${TURNDOWN_PARSER_BACKEND}")
 
 # Provide a reusable alias target for consumers
-if(NOT TARGET turndown_cpp::gumbo)
-    add_library(turndown_cpp::gumbo ALIAS Gumbo::Gumbo)
+if(NOT TARGET turndown_cpp::parser)
+    add_library(turndown_cpp::parser ALIAS ${TURNDOWN_PARSER_TARGET})
 endif()
 
 add_subdirectory(src)
@@ -130,9 +147,15 @@ install(EXPORT turndown_cpp_targets
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/turndown_cpp
 )
 
+# Install config files and the appropriate Find module for the selected backend
+set(TURNDOWN_FIND_MODULES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindGumbo.cmake")
+if(TURNDOWN_PARSER_BACKEND STREQUAL "tidy")
+    list(APPEND TURNDOWN_FIND_MODULES "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindTidy.cmake")
+endif()
+
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/turndown_cpp-config.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/turndown_cpp-config-version.cmake"
-    "${CMAKE_CURRENT_SOURCE_DIR}/cmake/FindGumbo.cmake"
+    ${TURNDOWN_FIND_MODULES}
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/turndown_cpp
 )

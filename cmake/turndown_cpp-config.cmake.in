@@ -2,14 +2,22 @@
 
 include(CMakeFindDependencyMacro)
 
-# Add our cmake directory to module path for FindGumbo.cmake
+# Add our cmake directory to module path for FindGumbo.cmake and FindTidy.cmake
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}")
 
-find_dependency(Gumbo)
+# Find the parser backend that was used when building this library
+set(TURNDOWN_PARSER_BACKEND "@TURNDOWN_PARSER_BACKEND@")
+
+if(TURNDOWN_PARSER_BACKEND STREQUAL "gumbo")
+    find_dependency(Gumbo)
+    if(NOT TARGET turndown_cpp::parser)
+        add_library(turndown_cpp::parser ALIAS Gumbo::Gumbo)
+    endif()
+elseif(TURNDOWN_PARSER_BACKEND STREQUAL "tidy")
+    find_dependency(Tidy)
+    if(NOT TARGET turndown_cpp::parser)
+        add_library(turndown_cpp::parser ALIAS Tidy::Tidy)
+    endif()
+endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/turndown_cpp_targets.cmake")
-
-# Provide the turndown_cpp::gumbo alias for consistency
-if(NOT TARGET turndown_cpp::gumbo)
-    add_library(turndown_cpp::gumbo ALIAS Gumbo::Gumbo)
-endif()

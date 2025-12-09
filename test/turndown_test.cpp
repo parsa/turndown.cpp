@@ -228,10 +228,9 @@ TEST(TurndownServiceTest, RuleFactoryBeforeDefaultsOverridesParagraph) {
 TEST(TurndownServiceTest, GumboNodeSourceAllowsExistingTree) {
     TurndownService service;
     std::string html = "<ul><li>A</li><li>B</li></ul>";
-    GumboOutput* output = gumbo_parse(html.c_str());
-    GumboNodeSource source(gumbo::NodeView(output->root));
+    gumbo::Document doc = gumbo::Document::parse(html);
+    GumboNodeSource source(doc.root());
     auto markdown = service.turndown(source);
-    gumbo_destroy_output(&kGumboDefaultOptions, output);
     EXPECT_NE(markdown.find("*   A"), std::string::npos);
     EXPECT_NE(markdown.find("*   B"), std::string::npos);
 }

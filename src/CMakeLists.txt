@@ -8,7 +8,7 @@ add_library(turndown_cpp_lib
     node.cpp
     utilities.cpp
     dom_source.cpp
-    gumbo_adapter.cpp
+    ${TURNDOWN_PARSER_ADAPTER_SOURCE}
 )
 
 target_include_directories(turndown_cpp_lib
@@ -19,7 +19,7 @@ target_include_directories(turndown_cpp_lib
 
 target_link_libraries(turndown_cpp_lib
     PUBLIC
-        turndown_cpp::gumbo
+        turndown_cpp::parser
 )
 
 set_target_properties(turndown_cpp_lib PROPERTIES

@@ -8,26 +8,26 @@
 #include <string_view>
 #include <vector>
 
-#include <gumbo.h>
-
 namespace turndown_cpp::gumbo {
 
 class NodeView;
 
+/// @brief Opaque handle for node identity (used in hash maps)
 struct NodeHandle {
     NodeHandle() = default;
-    explicit NodeHandle(GumboNode* node) : node_(node) {}
+    explicit NodeHandle(void* node) : node_(node) {}
 
-    GumboNode* raw() const { return node_; }
+    void* raw() const { return node_; }
     explicit operator bool() const { return node_ != nullptr; }
 
     bool operator==(NodeHandle const& other) const { return node_ == other.node_; }
     bool operator!=(NodeHandle const& other) const { return !(*this == other); }
 
 private:
-    GumboNode* node_ = nullptr;
+    void* node_ = nullptr;
 };
 
+/// @brief Node type enumeration (parser-agnostic)
 enum class NodeType {
     Document,
     Element,
@@ -38,6 +38,13 @@ enum class NodeType {
     Unknown
 };
 
+/// @brief Attribute name-value pair
+struct AttributeView {
+    std::string_view name;
+    std::string_view value;
+};
+
+/// @brief Range for iterating over child nodes
 class ChildRange {
 public:
     class Iterator {
@@ -48,33 +55,32 @@ public:
         using pointer = NodeView*;
         using reference = NodeView;
 
-        explicit Iterator(GumboNode** ptr);
+        Iterator() = default;
+        Iterator(void* parent, std::size_t index, std::size_t count);
         NodeView operator*() const;
         Iterator& operator++();
         bool operator==(Iterator const& other) const;
         bool operator!=(Iterator const& other) const { return !(*this == other); }
 
     private:
-        GumboNode** current_ = nullptr;
+        void* parent_ = nullptr;
+        std::size_t index_ = 0;
+        std::size_t count_ = 0;
     };
 
     ChildRange() = default;
-    explicit ChildRange(GumboVector* vector);
+    explicit ChildRange(void* parent);
 
     Iterator begin() const;
     Iterator end() const;
     bool empty() const;
 
 private:
-    GumboNode** begin_ = nullptr;
-    GumboNode** end_ = nullptr;
+    void* parent_ = nullptr;
+    std::size_t count_ = 0;
 };
 
-struct AttributeView {
-    std::string_view name;
-    std::string_view value;
-};
-
+/// @brief Range for iterating over element attributes
 class AttributeRange {
 public:
     class Iterator {
@@ -85,34 +91,38 @@ public:
         using pointer = AttributeView*;
         using reference = AttributeView;
 
-        explicit Iterator(GumboAttribute** ptr);
+        Iterator() = default;
+        Iterator(void* node, std::size_t index, std::size_t count);
         AttributeView operator*() const;
         Iterator& operator++();
         bool operator==(Iterator const& other) const;
         bool operator!=(Iterator const& other) const { return !(*this == other); }
 
     private:
-        GumboAttribute** current_ = nullptr;
+        void* node_ = nullptr;
+        std::size_t index_ = 0;
+        std::size_t count_ = 0;
     };
 
     AttributeRange() = default;
-    explicit AttributeRange(GumboVector* vector);
+    explicit AttributeRange(void* node);
 
     Iterator begin() const;
     Iterator end() const;
     bool empty() const;
 
 private:
-    GumboAttribute** begin_ = nullptr;
-    GumboAttribute** end_ = nullptr;
+    void* node_ = nullptr;
+    std::size_t count_ = 0;
 };
 
+/// @brief Lightweight view over a DOM node
 class NodeView {
 public:
     NodeView() = default;
-    explicit NodeView(GumboNode* node);
+    explicit NodeView(void* node);
 
-    GumboNode* raw() const { return node_; }
+    void* raw() const { return node_; }
     explicit operator bool() const { return node_ != nullptr; }
     bool operator==(NodeView const& other) const { return node_ == other.node_; }
     bool operator!=(NodeView const& other) const { return node_ != other.node_; }
@@ -143,13 +153,13 @@ public:
     std::string_view text() const;
 
 private:
-    GumboNode* node_ = nullptr;
+    void* node_ = nullptr;
 };
 
+/// @brief Owns a parsed HTML document
 class Document {
 public:
     Document() = default;
-    explicit Document(GumboOutput* output);
     static Document parse(std::string const& html);
 
     Document(Document const&) = delete;
@@ -164,21 +174,12 @@ public:
     NodeView html() const;
     NodeView body() const;
     explicit operator bool() const { return output_ != nullptr; }
-    GumboOutput* raw() const { return output_; }
+    void* raw() const { return output_; }
 
 private:
-    GumboOutput* output_ = nullptr;
+    explicit Document(void* output);
+    void* output_ = nullptr;
 };
-
-std::string_view to_string_view(GumboStringPiece const& piece);
-
-std::string lookup_tag_name(GumboNode* node);
-
-bool has_tag(GumboNode* node, std::string_view tag);
-
-inline bool is_element(GumboNode* node) {
-    return node && node->type == GUMBO_NODE_ELEMENT;
-}
 
 } // namespace turndown_cpp::gumbo
 
@@ -190,4 +191,3 @@ struct std::hash<turndown_cpp::gumbo::NodeHandle> {
 };
 
 #endif // TURNDOWN_CPP_GUMBO_ADAPTER_H
-
