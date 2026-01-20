@@ -10,6 +10,9 @@
 #
 # This module defines the following imported targets:
 #   Lexbor::Lexbor - The lexbor library.
+#
+# Hints:
+#   TURNDOWN_PREFER_STATIC - If set, prefer static libraries
 
 find_package(PkgConfig QUIET)
 if(PKG_CONFIG_FOUND)
@@ -23,12 +26,27 @@ find_path(Lexbor_INCLUDE_DIR
     ${PC_Lexbor_INCLUDE_DIRS}
 )
 
+# Save and modify library suffixes to prefer static if requested
+if(TURNDOWN_PREFER_STATIC)
+  set(_Lexbor_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+  if(WIN32)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .lib .a)
+  else()
+    set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+  endif()
+endif()
+
 find_library(Lexbor_LIBRARY
-  NAMES lexbor liblexbor
+  NAMES lexbor liblexbor lexbor_static liblexbor_static
   HINTS
     ${PC_Lexbor_LIBDIR}
     ${PC_Lexbor_LIBRARY_DIRS}
 )
+
+# Restore original suffixes
+if(TURNDOWN_PREFER_STATIC)
+  set(CMAKE_FIND_LIBRARY_SUFFIXES ${_Lexbor_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES})
+endif()
 
 if(NOT Lexbor_VERSION AND PC_Lexbor_VERSION)
   set(Lexbor_VERSION "${PC_Lexbor_VERSION}")

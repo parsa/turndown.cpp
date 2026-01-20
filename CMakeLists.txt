@@ -23,6 +23,9 @@ option(TURNDOWN_BUILD_DOCS "Build Doxygen documentation" OFF)
 set(TURNDOWN_PARSER_BACKEND "gumbo" CACHE STRING "HTML parser backend (gumbo, tidy, or lexbor)")
 set_property(CACHE TURNDOWN_PARSER_BACKEND PROPERTY STRINGS "gumbo" "tidy" "lexbor")
 
+# Static linking preference (for release builds)
+option(TURNDOWN_PREFER_STATIC "Prefer static libraries for parser backend" OFF)
+
 # Include CTest only if testing is enabled
 if(TURNDOWN_BUILD_TESTING)
     include(CTest)

@@ -83,6 +83,7 @@ cmake --build . --target docs
 | `TURNDOWN_BUILD_BENCHMARKS` | ON | Build Google Benchmark integration |
 | `TURNDOWN_BUILD_DOCS` | OFF | Build Doxygen documentation |
 | `TURNDOWN_PARSER_BACKEND` | gumbo | HTML parser backend (`gumbo`, `tidy`, or `lexbor`) |
+| `TURNDOWN_PREFER_STATIC` | OFF | Prefer static libraries for parser backend (for release builds) |
 
 ### Parser Backends
 

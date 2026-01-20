@@ -9,6 +9,9 @@
 #
 # This module defines the following imported targets:
 #   Tidy::Tidy        - The tidy library
+#
+# Hints:
+#   TURNDOWN_PREFER_STATIC - If set, prefer static libraries
 
 include(FindPackageHandleStandardArgs)
 
@@ -27,13 +30,28 @@ find_path(Tidy_INCLUDE_DIR
     PATH_SUFFIXES tidy
 )
 
+# Save and modify library suffixes to prefer static if requested
+if(TURNDOWN_PREFER_STATIC)
+    set(_Tidy_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    if(WIN32)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES .lib .a)
+    else()
+        set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+    endif()
+endif()
+
 # Find library
 find_library(Tidy_LIBRARY
-    NAMES tidy tidy5
+    NAMES tidy tidy5 tidys tidy5s
     HINTS
         ${PC_Tidy_LIBDIR}
         ${PC_Tidy_LIBRARY_DIRS}
 )
+
+# Restore original suffixes
+if(TURNDOWN_PREFER_STATIC)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${_Tidy_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES})
+endif()
 
 # Get version from header if possible
 if(Tidy_INCLUDE_DIR AND EXISTS "${Tidy_INCLUDE_DIR}/tidyplatform.h")

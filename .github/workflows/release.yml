@@ -22,8 +22,8 @@ jobs:
 
     env:
       BUILD_DIR: build/${{ matrix.backend }}
-      PACKAGE_NAME: turndown_cpp-${{ github.ref_name }}-${{ matrix.backend }}-${{ runner.os }}-${{ runner.arch }}
-      INSTALL_PREFIX: ${{ github.workspace }}/dist/turndown_cpp-${{ github.ref_name }}-${{ matrix.backend }}-${{ runner.os }}-${{ runner.arch }}
+      PACKAGE_NAME: turndown_cpp-${{ github.ref_name }}-${{ matrix.backend }}-${{ matrix.os }}-static
+      INSTALL_PREFIX: ${{ github.workspace }}/dist/turndown_cpp-${{ github.ref_name }}-${{ matrix.backend }}-${{ matrix.os }}-static
 
     steps:
       - uses: actions/checkout@v4
@@ -42,14 +42,17 @@ jobs:
       - name: Install Dependencies (Ubuntu, Lexbor)
         if: matrix.os == 'ubuntu-latest' && matrix.backend == 'lexbor'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y curl gnupg lsb-release
-          # Add lexbor repository (https://lexbor.com/download/#ubuntu)
-          sudo mkdir -p /etc/apt/keyrings
-          curl -fsSL https://lexbor.com/keys/lexbor_signing.key | sudo gpg --dearmor -o /etc/apt/keyrings/lexbor.gpg
-          echo "deb [signed-by=/etc/apt/keyrings/lexbor.gpg] https://packages.lexbor.com/ubuntu/ $(lsb_release -cs) liblexbor" | sudo tee /etc/apt/sources.list.d/lexbor.list
-          sudo apt-get update
-          sudo apt-get install -y liblexbor liblexbor-dev
+          # Build lexbor from source with static library (apt packages don't include static libs)
+          sudo apt-get update && sudo apt-get install -y cmake
+          git clone --depth 1 https://github.com/lexbor/lexbor.git /tmp/lexbor
+          cmake -B /tmp/lexbor/build -S /tmp/lexbor \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DLEXBOR_BUILD_SHARED=OFF \
+            -DLEXBOR_BUILD_STATIC=ON \
+            -DLEXBOR_BUILD_TESTS=OFF \
+            -DLEXBOR_BUILD_EXAMPLES=OFF
+          cmake --build /tmp/lexbor/build -j$(nproc)
+          sudo cmake --install /tmp/lexbor/build
 
       # --------------------------
       # Dependencies (macOS)
@@ -81,27 +84,27 @@ jobs:
           path: |
             vcpkg/installed
             vcpkg/downloads
-          key: vcpkg-${{ runner.os }}-${{ matrix.backend }}-x64-windows-${{ hashFiles('.github/workflows/release.yml') }}
+          key: vcpkg-${{ matrix.os }}-${{ matrix.backend }}-x64-windows-static-${{ hashFiles('.github/workflows/release.yml') }}
           restore-keys: |
-            vcpkg-${{ runner.os }}-${{ matrix.backend }}-x64-windows-
+            vcpkg-${{ matrix.os }}-${{ matrix.backend }}-x64-windows-static-
 
       - name: Install Dependencies (Windows)
         if: matrix.os == 'windows-latest' && matrix.backend == 'gumbo'
         run: |
           & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat"
-          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install gumbo:x64-windows
+          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install gumbo:x64-windows-static
 
       - name: Install Dependencies (Windows, Tidy)
         if: matrix.os == 'windows-latest' && matrix.backend == 'tidy'
         run: |
           & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat"
-          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install tidy-html5:x64-windows
+          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install tidy-html5:x64-windows-static
 
       - name: Install Dependencies (Windows, Lexbor)
         if: matrix.os == 'windows-latest' && matrix.backend == 'lexbor'
         run: |
           & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat"
-          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install lexbor:x64-windows
+          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install lexbor:x64-windows-static
 
       # --------------------------
       # Build + Install
@@ -111,6 +114,8 @@ jobs:
         run: |
           cmake -B "${{ env.BUILD_DIR }}" \
             -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_SHARED_LIBS=OFF \
+            -DTURNDOWN_PREFER_STATIC=ON \
             -DTURNDOWN_PARSER_BACKEND=${{ matrix.backend }} \
             -DTURNDOWN_BUILD_DOCS=OFF \
             -DTURNDOWN_BUILD_TESTING=OFF \
@@ -123,6 +128,8 @@ jobs:
         run: >
           cmake -B "${{ env.BUILD_DIR }}"
           -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_SHARED_LIBS=OFF
+          -DTURNDOWN_PREFER_STATIC=ON
           -DTURNDOWN_PARSER_BACKEND=${{ matrix.backend }}
           -DTURNDOWN_BUILD_DOCS=OFF
           -DTURNDOWN_BUILD_TESTING=OFF
@@ -130,7 +137,8 @@ jobs:
           -DTURNDOWN_BUILD_CLI=ON
           -DCMAKE_INSTALL_PREFIX="${{ env.INSTALL_PREFIX }}"
           -DCMAKE_TOOLCHAIN_FILE="${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake"
-          -DVCPKG_TARGET_TRIPLET=x64-windows
+          -DVCPKG_TARGET_TRIPLET=x64-windows-static
+          -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
 
       - name: Build
         run: cmake --build "${{ env.BUILD_DIR }}" --config Release

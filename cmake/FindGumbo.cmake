@@ -12,6 +12,9 @@
 #   Gumbo_INCLUDE_DIRS - Include directories for Gumbo
 #   Gumbo_LIBRARIES    - Libraries to link against
 #   Gumbo_VERSION      - Version of Gumbo found
+#
+# Hints:
+#   TURNDOWN_PREFER_STATIC - If set, prefer static libraries
 
 include(FindPackageHandleStandardArgs)
 
@@ -27,10 +30,25 @@ find_path(Gumbo_INCLUDE_DIR
     PATH_SUFFIXES gumbo
 )
 
+# Save and modify library suffixes to prefer static if requested
+if(TURNDOWN_PREFER_STATIC)
+    set(_Gumbo_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES})
+    if(WIN32)
+        set(CMAKE_FIND_LIBRARY_SUFFIXES .lib .a)
+    else()
+        set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+    endif()
+endif()
+
 find_library(Gumbo_LIBRARY
     NAMES gumbo
     HINTS ${_GUMBO_LIBRARY_DIRS}
 )
+
+# Restore original suffixes
+if(TURNDOWN_PREFER_STATIC)
+    set(CMAKE_FIND_LIBRARY_SUFFIXES ${_Gumbo_ORIG_CMAKE_FIND_LIBRARY_SUFFIXES})
+endif()
 
 if(_GUMBO_VERSION)
     set(Gumbo_VERSION "${_GUMBO_VERSION}")
