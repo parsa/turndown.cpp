@@ -225,11 +225,11 @@ TEST(TurndownServiceTest, RuleFactoryBeforeDefaultsOverridesParagraph) {
     EXPECT_EQ(service.turndown("<p>custom</p>"), "[[custom]]");
 }
 
-TEST(TurndownServiceTest, GumboNodeSourceAllowsExistingTree) {
+TEST(TurndownServiceTest, NodeViewSourceAllowsExistingTree) {
     TurndownService service;
     std::string html = "<ul><li>A</li><li>B</li></ul>";
     dom::Document doc = dom::Document::parse(html);
-    GumboNodeSource source(doc.root());
+    NodeViewSource source(doc.root());
     auto markdown = service.turndown(source);
     EXPECT_NE(markdown.find("*   A"), std::string::npos);
     EXPECT_NE(markdown.find("*   B"), std::string::npos);

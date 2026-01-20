@@ -7,6 +7,7 @@ add_library(turndown_cpp_lib
     collapse_whitespace.cpp
     node.cpp
     utilities.cpp
+    dom_adapter.cpp
     dom_source.cpp
     ${TURNDOWN_PARSER_ADAPTER_SOURCE}
 )

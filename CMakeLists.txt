@@ -53,12 +53,10 @@ endif()
 
 message(STATUS "Using HTML parser backend: ${TURNDOWN_PARSER_BACKEND}")
 
-# Export a compile definition for backend selection.
-# This must propagate to consumers of the installed CMake target, since
-# `include/turndown/dom_adapter.h` selects the correct adapter header based on
-# TURNDOWN_PARSER_BACKEND_* macros.
+# Compile definition for backend selection (used by internal implementation and tests).
 string(TOUPPER "${TURNDOWN_PARSER_BACKEND}" TURNDOWN_PARSER_BACKEND_UPPER)
 set(TURNDOWN_PARSER_BACKEND_DEFINE "TURNDOWN_PARSER_BACKEND_${TURNDOWN_PARSER_BACKEND_UPPER}=1")
+add_compile_definitions(${TURNDOWN_PARSER_BACKEND_DEFINE})
 
 # Provide a reusable alias target for consumers
 if(NOT TARGET turndown_cpp::parser)
@@ -66,9 +64,6 @@ if(NOT TARGET turndown_cpp::parser)
 endif()
 
 add_subdirectory(src)
-
-# Ensure the backend macro propagates through the installed/exported target.
-target_compile_definitions(turndown_cpp_lib PUBLIC ${TURNDOWN_PARSER_BACKEND_DEFINE})
 
 if(TURNDOWN_BUILD_CLI)
     add_subdirectory(cli)
@@ -144,6 +139,9 @@ endif()
 install(DIRECTORY include/
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/turndown
     FILES_MATCHING PATTERN "*.h"
+    PATTERN "gumbo_adapter.h" EXCLUDE
+    PATTERN "tidy_adapter.h" EXCLUDE
+    PATTERN "lexbor_adapter.h" EXCLUDE
 )
 
 write_basic_package_version_file(

@@ -13,9 +13,9 @@ public:
     virtual dom::NodeView root() const = 0;
 };
 
-class GumboNodeSource final : public DomSource {
+class NodeViewSource final : public DomSource {
 public:
-    explicit GumboNodeSource(dom::NodeView node) : node_(node) {}
+    explicit NodeViewSource(dom::NodeView node) : node_(node) {}
     dom::NodeView root() const override { return node_; }
 private:
     dom::NodeView node_;
