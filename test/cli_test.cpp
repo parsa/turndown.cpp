@@ -5,11 +5,14 @@
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <chrono>
+#include <optional>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
-
-#include <unistd.h>
 
 #ifndef TURNDOWN_CLI_PATH
 #error "TURNDOWN_CLI_PATH is not defined"
@@ -17,42 +20,113 @@
 
 namespace {
 
-std::string runCli(std::vector<std::string> const& args, std::string const& stdinData) {
-    std::string tempPath;
-    std::string cmd;
-    if (!stdinData.empty()) {
-        char tmpl[] = "/tmp/turndown_cli_inputXXXXXX";
-        int fd = mkstemp(tmpl);
-        if (fd == -1) {
-            throw std::runtime_error("Failed to create temp file");
+#if defined(_WIN32)
+FILE* turndown_popen(char const* cmd, char const* mode) {
+    return _popen(cmd, mode);
+}
+
+int turndown_pclose(FILE* f) {
+    return _pclose(f);
+}
+
+std::string quoteShell(std::string const& s) {
+    // Avoid quoting unless necessary: _popen ultimately runs via cmd.exe and
+    // leading quotes can make command parsing brittle.
+    if (s.find_first_of(" \t") == std::string::npos) {
+        return s;
+    }
+    // cmd.exe quoting: minimal wrapper; paths/args we use here won't contain quotes.
+    return "\"" + s + "\"";
+}
+
+std::string nullRedirect() {
+    return "2>&1";
+}
+
+std::string catCommand(std::string const& path) {
+    return "type " + quoteShell(path);
+}
+#else
+FILE* turndown_popen(char const* cmd, char const* mode) {
+    return popen(cmd, mode);
+}
+
+int turndown_pclose(FILE* f) {
+    return pclose(f);
+}
+
+std::string quoteShell(std::string const& s) {
+    // POSIX shell single-quote escaping: ' -> '"'"'
+    std::string out = "'";
+    for (char c : s) {
+        if (c == '\'') {
+            out += "'\"'\"'";
+        } else {
+            out.push_back(c);
         }
-        auto const written = write(fd, stdinData.data(), stdinData.size());
-        (void)written;
-        close(fd);
-        tempPath = tmpl;
-        cmd += "cat '";
-        cmd += tempPath;
-        cmd += "' | ";
+    }
+    out += "'";
+    return out;
+}
+
+std::string nullRedirect() {
+    return "2>&1";
+}
+
+std::string catCommand(std::string const& path) {
+    return "cat " + quoteShell(path);
+}
+#endif
+
+std::filesystem::path makeTempPath(std::string_view prefix, std::string_view suffix) {
+    auto dir = std::filesystem::temp_directory_path();
+    auto now = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+    auto filename = std::string(prefix) + std::to_string(now) + std::string(suffix);
+    return dir / filename;
+}
+
+std::filesystem::path writeTempFile(std::string_view prefix, std::string_view suffix, std::string const& data) {
+    auto path = makeTempPath(prefix, suffix);
+    std::ofstream out(path, std::ios::binary);
+    if (!out) {
+        throw std::runtime_error("Failed to create temp file: " + path.string());
+    }
+    out.write(data.data(), static_cast<std::streamsize>(data.size()));
+    out.close();
+    return path;
+}
+
+std::string runCli(std::vector<std::string> const& args, std::string const& stdinData) {
+    std::optional<std::filesystem::path> stdinPath;
+    if (!stdinData.empty()) {
+        stdinPath = writeTempFile("turndown_cli_input_", ".txt", stdinData);
     }
 
-    cmd += "'";
-    cmd += TURNDOWN_CLI_PATH;
-    cmd += "'";
+    std::string cliPath = TURNDOWN_CLI_PATH;
+#if defined(_WIN32)
+    // Prefer backslashes for cmd.exe.
+    cliPath = std::filesystem::path(cliPath).make_preferred().string();
+#endif
+
+    std::string cmd;
+    if (stdinPath) {
+        cmd += catCommand(stdinPath->string());
+        cmd += " | ";
+    }
+
+    cmd += quoteShell(cliPath);
     for (auto const& a : args) {
         cmd.push_back(' ');
-        cmd += a;
+        cmd += quoteShell(a);
     }
-    cmd += " 2>/dev/null";
-    if (!tempPath.empty()) {
-        cmd += "; rm '";
-        cmd += tempPath;
-        cmd += "'";
-    }
+    cmd.push_back(' ');
+    cmd += nullRedirect();
 
-    FILE* pipe = popen(cmd.c_str(), "r");
+    FILE* pipe = turndown_popen(cmd.c_str(), "r");
     if (!pipe) {
-        if (!tempPath.empty()) {
-            unlink(tempPath.c_str());
+        if (stdinPath) {
+            std::error_code ec;
+            std::filesystem::remove(*stdinPath, ec);
         }
         throw std::runtime_error(std::string("Failed to run CLI: ") + std::strerror(errno) + " (" + cmd + ")");
     }
@@ -61,7 +135,19 @@ std::string runCli(std::vector<std::string> const& args, std::string const& stdi
     while (fgets(buf, sizeof(buf), pipe)) {
         output += buf;
     }
-    pclose(pipe);
+    int const exitCode = turndown_pclose(pipe);
+    if (exitCode != 0) {
+        if (stdinPath) {
+            std::error_code ec;
+            std::filesystem::remove(*stdinPath, ec);
+        }
+        throw std::runtime_error("CLI exited with code " + std::to_string(exitCode) + ". Output:\n" + output + "\nCommand:\n" + cmd);
+    }
+
+    if (stdinPath) {
+        std::error_code ec;
+        std::filesystem::remove(*stdinPath, ec);
+    }
     return output;
 }
 
@@ -72,14 +158,8 @@ TEST(CliTests, ReadsFromStdin) {
 }
 
 TEST(CliTests, ReadsFromFile) {
-    char const* path = "/tmp/turndown_cli_file.html";
-    {
-        FILE* f = fopen(path, "w");
-        ASSERT_NE(f, nullptr);
-        fputs("<h1>Title</h1>", f);
-        fclose(f);
-    }
-    std::string out = runCli({std::string("--file"), path, "--atx-headings"}, "");
+    auto path = writeTempFile("turndown_cli_file_", ".html", "<h1>Title</h1>");
+    std::string out = runCli({std::string("--file"), path.string(), "--atx-headings"}, "");
     EXPECT_EQ(out, "# Title");
 }
 

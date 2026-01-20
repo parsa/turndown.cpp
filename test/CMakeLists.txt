@@ -8,12 +8,23 @@ function(turndown_add_gtest target source)
         turndown_cpp_lib
         GTest::gtest_main
     )
-    gtest_discover_tests(${target}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        DISCOVERY_TIMEOUT ${TURNDOWN_GTEST_TIMEOUT}
-        DISCOVERY_MODE POST_BUILD
-        NO_PRETTY_VALUES TRUE
-    )
+    # Keep per-test discovery, but don't run the executable at build time on
+    # Windows (DLL dependencies are easier to satisfy at test time).
+    if(WIN32)
+        gtest_discover_tests(${target}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            DISCOVERY_TIMEOUT ${TURNDOWN_GTEST_TIMEOUT}
+            DISCOVERY_MODE PRE_TEST
+            NO_PRETTY_VALUES TRUE
+        )
+    else()
+        gtest_discover_tests(${target}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+            DISCOVERY_TIMEOUT ${TURNDOWN_GTEST_TIMEOUT}
+            DISCOVERY_MODE POST_BUILD
+            NO_PRETTY_VALUES TRUE
+        )
+    endif()
 endfunction()
 
 turndown_add_gtest(turndown_test turndown_test.cpp)

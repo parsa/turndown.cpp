@@ -11,18 +11,28 @@
 # This module defines the following imported targets:
 #   Lexbor::Lexbor - The lexbor library.
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(PC_Lexbor QUIET lexbor)
+find_package(PkgConfig QUIET)
+if(PKG_CONFIG_FOUND)
+  pkg_search_module(PC_Lexbor QUIET lexbor liblexbor)
+endif()
 
 find_path(Lexbor_INCLUDE_DIR
   NAMES lexbor/html/parser.h
-  HINTS ${PC_Lexbor_INCLUDE_DIRS}
-  PATH_SUFFIXES lexbor
+  HINTS
+    ${PC_Lexbor_INCLUDEDIR}
+    ${PC_Lexbor_INCLUDE_DIRS}
 )
 
 find_library(Lexbor_LIBRARY
-  NAMES lexbor
+  NAMES lexbor liblexbor
+  HINTS
+    ${PC_Lexbor_LIBDIR}
+    ${PC_Lexbor_LIBRARY_DIRS}
 )
+
+if(NOT Lexbor_VERSION AND PC_Lexbor_VERSION)
+  set(Lexbor_VERSION "${PC_Lexbor_VERSION}")
+endif()
 
 if(Lexbor_INCLUDE_DIR AND EXISTS "${Lexbor_INCLUDE_DIR}/lexbor/core/base.h")
   file(STRINGS "${Lexbor_INCLUDE_DIR}/lexbor/core/base.h" LEXBOR_VERSION_MAJOR_LINE REGEX "^#define[ \t]+LXB_VERSION_MAJOR[ \t]+[0-9]+")

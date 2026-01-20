@@ -16,6 +16,7 @@
 #include "utf8_helpers.h"
 #include "utilities.h"
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <cctype>

@@ -107,6 +107,22 @@ static std::string cleanAttribute(std::string_view attribute) {
     return std::regex_replace(std::string(attribute), std::regex(R"((\n+\s*)+)"), "\n");
 }
 
+static std::string ltrimNewlines(std::string const& text) {
+    auto const first = text.find_first_not_of("\r\n");
+    if (first == std::string::npos) return "";
+    return text.substr(first);
+}
+
+static std::string rtrimNewlines(std::string const& text) {
+    auto const last = text.find_last_not_of("\r\n");
+    if (last == std::string::npos) return "";
+    return text.substr(0, last + 1);
+}
+
+static std::string trimNewlines(std::string const& text) {
+    return rtrimNewlines(ltrimNewlines(text));
+}
+
 static bool hasNextSiblingNodeView(dom::NodeView node) {
     return static_cast<bool>(getNextSiblingView(node));
 }
@@ -158,7 +174,9 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
             return isElementWithNameView(node, "blockquote");
         },
         [](std::string const& content, dom::NodeView, TurndownOptions const&) -> std::string {
-            std::string trimmed = std::regex_replace(content, std::regex(R"(^\n+|\n+$)"), "");
+            // Keep this simple and non-regex: MSVC std::regex_replace has been
+            // observed to treat `$` as end-of-line and strip internal blank lines.
+            std::string trimmed = trimNewlines(content);
             std::istringstream iss(trimmed);
             std::string line;
             std::string block;
@@ -176,8 +194,7 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
             return isElementWithNameView(node, "ul") || isElementWithNameView(node, "ol");
         },
         [](std::string const& content, dom::NodeView node, TurndownOptions const&) -> std::string {
-            std::string inner = std::regex_replace(content, std::regex(R"(^\n+)"), "");
-            inner = std::regex_replace(inner, std::regex(R"(\n+$)"), "");
+            std::string inner = trimNewlines(content);
             auto parent = getParentView(node);
             if (isElementWithNameView(parent, "li")) {
                 if (isLastElementChildView(parent, node)) {
@@ -195,8 +212,13 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
             return isElementWithNameView(node, "li");
         },
         [&options](std::string const& content, dom::NodeView node, TurndownOptions const&) -> std::string {
-            std::string result = std::regex_replace(content, std::regex(R"(^\n+)"), "");
-            result = std::regex_replace(result, std::regex(R"(\n+$)"), "\n");
+            std::string result = ltrimNewlines(content);
+            std::string trimmed = rtrimNewlines(result);
+            bool hadTrailingNewlines = trimmed.size() != result.size();
+            result = trimmed;
+            if (hadTrailingNewlines) {
+                result += "\n";
+            }
             result = std::regex_replace(result, std::regex(R"(\n)"), "\n    ");
 
             std::string prefix = options.bulletListMarker + "   ";
@@ -260,11 +282,14 @@ void defineCommonMarkRules(Rules& rules, TurndownOptions const& options) {
             std::string code = getNodeText(codeNode);
             char fenceChar = options.fence.empty() ? '`' : options.fence.front();
             int fenceSize = 3;
-            std::regex fenceInside(std::string("^") + fenceChar + "{3,}", std::regex::multiline);
-            std::sregex_iterator it(code.begin(), code.end(), fenceInside);
-            std::sregex_iterator end;
-            for (; it != end; ++it) {
-                fenceSize = std::max(fenceSize, static_cast<int>(it->str().size()) + 1);
+            std::regex fenceInside(std::string("(^|\\n)") + fenceChar + "{3,}");
+            for (std::sregex_iterator it(code.begin(), code.end(), fenceInside), end; it != end; ++it) {
+                std::string match = it->str();
+                std::size_t run = match.size();
+                if (!match.empty() && match.front() == '\n') {
+                    --run;
+                }
+                fenceSize = std::max(fenceSize, static_cast<int>(run) + 1);
             }
             std::string fence = repeatChar(fenceChar, fenceSize);
             if (!code.empty() && code.back() == '\n') {
