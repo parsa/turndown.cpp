@@ -81,6 +81,16 @@ if(Lexbor_FOUND)
       IMPORTED_LOCATION "${Lexbor_LIBRARY}"
     )
   endif()
+
+  # When linking against a static Lexbor library on Windows, consumers must define
+  # LEXBOR_STATIC so the headers don't mark symbols as __declspec(dllimport).
+  # Otherwise, you'll see unresolved externals like __imp_lxb_* at link time.
+  if(TURNDOWN_PREFER_STATIC
+      OR Lexbor_LIBRARY MATCHES "lexbor_static"
+      OR Lexbor_LIBRARY MATCHES "liblexbor_static"
+      OR Lexbor_LIBRARY MATCHES "\\\\.a$")
+    set_property(TARGET Lexbor::Lexbor APPEND PROPERTY INTERFACE_COMPILE_DEFINITIONS LEXBOR_STATIC)
+  endif()
 endif()
 
 mark_as_advanced(Lexbor_INCLUDE_DIR Lexbor_LIBRARY)

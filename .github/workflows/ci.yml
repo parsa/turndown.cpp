@@ -213,29 +213,146 @@ jobs:
           ctest --build-config ${{ matrix.build_type }} --output-on-failure
 
   install-test:
-    name: Install Test (Gumbo)
-    runs-on: ubuntu-latest
+    name: Install Test (${{ matrix.backend }}, ${{ matrix.os }})
+    needs: [build-gumbo, build-tidy, build-lexbor]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        backend: [gumbo, tidy, lexbor]
+
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Dependencies
+      # --------------------------
+      # Dependencies (Ubuntu)
+      # --------------------------
+      - name: Install Dependencies (Ubuntu, Gumbo)
+        if: matrix.os == 'ubuntu-latest' && matrix.backend == 'gumbo'
         run: sudo apt-get update && sudo apt-get install -y libgumbo-dev
 
+      - name: Install Dependencies (Ubuntu, Tidy)
+        if: matrix.os == 'ubuntu-latest' && matrix.backend == 'tidy'
+        run: sudo apt-get update && sudo apt-get install -y libtidy-dev
+
+      - name: Install Dependencies (Ubuntu, Lexbor)
+        if: matrix.os == 'ubuntu-latest' && matrix.backend == 'lexbor'
+        run: |
+          # Add lexbor repository (https://lexbor.com/download/#ubuntu)
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://lexbor.com/keys/lexbor_signing.key | sudo gpg --dearmor -o /etc/apt/keyrings/lexbor.gpg
+          echo "deb [signed-by=/etc/apt/keyrings/lexbor.gpg] https://packages.lexbor.com/ubuntu/ $(lsb_release -cs) liblexbor" | sudo tee /etc/apt/sources.list.d/lexbor.list
+          sudo apt-get update
+          sudo apt-get install -y liblexbor liblexbor-dev
+
+      # --------------------------
+      # Dependencies (macOS)
+      # --------------------------
+      - name: Install Dependencies (macOS, Gumbo)
+        if: matrix.os == 'macos-latest' && matrix.backend == 'gumbo'
+        run: brew install gumbo-parser
+
+      - name: Install Dependencies (macOS, Tidy)
+        if: matrix.os == 'macos-latest' && matrix.backend == 'tidy'
+        run: brew install tidy-html5
+
+      - name: Install Dependencies (macOS, Lexbor)
+        if: matrix.os == 'macos-latest' && matrix.backend == 'lexbor'
+        run: brew install lexbor
+
+      # --------------------------
+      # Dependencies (Windows via vcpkg)
+      # --------------------------
+      - name: Setup vcpkg (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          git clone --depth 1 https://github.com/microsoft/vcpkg.git "$env:GITHUB_WORKSPACE\\vcpkg"
+
+      - name: Cache vcpkg (Windows)
+        if: matrix.os == 'windows-latest'
+        uses: actions/cache@v4
+        with:
+          path: |
+            vcpkg/installed
+            vcpkg/downloads
+          key: vcpkg-${{ runner.os }}-installtest-${{ matrix.backend }}-x64-windows-${{ hashFiles('.github/workflows/ci.yml') }}
+          restore-keys: |
+            vcpkg-${{ runner.os }}-installtest-${{ matrix.backend }}-x64-windows-
+
+      - name: Install Dependencies (Windows, Gumbo)
+        if: matrix.os == 'windows-latest' && matrix.backend == 'gumbo'
+        run: |
+          & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat"
+          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install gumbo:x64-windows
+
+      - name: Install Dependencies (Windows, Tidy)
+        if: matrix.os == 'windows-latest' && matrix.backend == 'tidy'
+        run: |
+          & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat"
+          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install tidy-html5:x64-windows
+
+      - name: Install Dependencies (Windows, Lexbor)
+        if: matrix.os == 'windows-latest' && matrix.backend == 'lexbor'
+        run: |
+          & "$env:GITHUB_WORKSPACE\\vcpkg\\bootstrap-vcpkg.bat"
+          & "$env:GITHUB_WORKSPACE\\vcpkg\\vcpkg.exe" install lexbor:x64-windows
+
       - name: Configure CMake
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DTURNDOWN_BUILD_DOCS=OFF -DTURNDOWN_BUILD_TESTING=OFF -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/build/install_prefix -DTURNDOWN_PARSER_BACKEND=gumbo
+        if: matrix.os != 'windows-latest'
+        run: |
+          cmake -B build \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DTURNDOWN_BUILD_DOCS=OFF \
+            -DTURNDOWN_BUILD_TESTING=OFF \
+            -DTURNDOWN_BUILD_EXAMPLES=OFF \
+            -DTURNDOWN_BUILD_CLI=OFF \
+            -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}/build/install_prefix \
+            -DTURNDOWN_PARSER_BACKEND=${{ matrix.backend }}
+
+      - name: Configure CMake (Windows)
+        if: matrix.os == 'windows-latest'
+        run: >
+          cmake -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DTURNDOWN_BUILD_DOCS=OFF
+          -DTURNDOWN_BUILD_TESTING=OFF
+          -DTURNDOWN_BUILD_EXAMPLES=OFF
+          -DTURNDOWN_BUILD_CLI=OFF
+          -DCMAKE_INSTALL_PREFIX=${{ github.workspace }}\\build\\install_prefix
+          -DTURNDOWN_PARSER_BACKEND=${{ matrix.backend }}
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake
+          -DVCPKG_TARGET_TRIPLET=x64-windows
 
       - name: Build
-        run: cmake --build build
+        run: cmake --build build --config Release
 
       - name: Install
-        run: cmake --install build
+        run: cmake --install build --config Release
 
       - name: Configure Install Test
+        if: matrix.os != 'windows-latest'
         run: cmake -B build/install_test -S test/install_test -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=${{ github.workspace }}/build/install_prefix
 
+      - name: Configure Install Test (Windows)
+        if: matrix.os == 'windows-latest'
+        run: >
+          cmake -B build/install_test -S test/install_test
+          -DCMAKE_BUILD_TYPE=Release
+          -DCMAKE_PREFIX_PATH=${{ github.workspace }}\\build\\install_prefix
+          -DCMAKE_TOOLCHAIN_FILE=${{ github.workspace }}\\vcpkg\\scripts\\buildsystems\\vcpkg.cmake
+          -DVCPKG_TARGET_TRIPLET=x64-windows
+
       - name: Build Install Test
-        run: cmake --build build/install_test
+        run: cmake --build build/install_test --config Release
 
       - name: Run Install Test
+        if: matrix.os != 'windows-latest'
         run: ./build/install_test/install_test
+
+      - name: Run Install Test (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          $env:PATH = "${{ github.workspace }}\\vcpkg\\installed\\x64-windows\\bin;${{ github.workspace }}\\vcpkg\\installed\\x64-windows\\debug\\bin;$env:PATH"
+          .\\build\\install_test\\Release\\install_test.exe
