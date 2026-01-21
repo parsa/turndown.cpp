@@ -4,7 +4,7 @@ Convert HTML into Markdown with C++.
 
 ## About
 
-This is a C++ port of the JavaScript [Turndown](https://github.com/mixmark-io/turndown) library. It provides the same functionality and options as the original, leveraging the [Gumbo HTML5 parser](https://github.com/google/gumbo-parser) for DOM parsing.
+This is a C++ port of the JavaScript [Turndown](https://github.com/mixmark-io/turndown) library. It provides the same functionality and options as the original, leveraging selectable HTML parser backends (Gumbo, Lexbor, tidy-html5, or libxml2) for DOM parsing.
 
 **Note:** This port is fully functional but ongoing development continues. Contributions and feedback are welcome.
 
@@ -27,7 +27,7 @@ This is a C++ port of the JavaScript [Turndown](https://github.com/mixmark-io/tu
 
 - C++ compiler with C++20 support (e.g., g++ 10+, clang++ 10+)
 - CMake (version 3.16 or higher)
-- Gumbo HTML5 parser library
+- One HTML parser backend library (Gumbo, Lexbor, tidy-html5, or libxml2)
 - Google Test (optional, for running tests)
 - Doxygen (optional, for building documentation)
 
@@ -82,7 +82,7 @@ cmake --build . --target docs
 | `TURNDOWN_BUILD_TESTING` | ON | Build the test suite |
 | `TURNDOWN_BUILD_BENCHMARKS` | ON | Build Google Benchmark integration |
 | `TURNDOWN_BUILD_DOCS` | OFF | Build Doxygen documentation |
-| `TURNDOWN_PARSER_BACKEND` | gumbo | HTML parser backend (`gumbo`, `tidy`, or `lexbor`) |
+| `TURNDOWN_PARSER_BACKEND` | gumbo | HTML parser backend (`gumbo`, `tidy`, `lexbor`, or `libxml2`) |
 | `TURNDOWN_PREFER_STATIC` | OFF | Prefer static libraries for parser backend (for release builds) |
 
 ### Parser Backends
@@ -92,10 +92,18 @@ The library supports multiple HTML parser backends:
 - **gumbo** (default): Uses [Google's Gumbo parser](https://github.com/google/gumbo-parser). Mature and well-tested, though archived.
 - **tidy**: Uses [tidy-html5](https://github.com/htacg/tidy-html5). Actively maintained. Note: normalizes some whitespace.
 - **lexbor**: Uses [Lexbor](https://github.com/lexbor/lexbor). Fast, modern, actively maintained.
+- **libxml2**: Uses [libxml2](https://gitlab.gnome.org/GNOME/libxml2)'s HTML parser. Widely available.
 
 To use a different backend:
 ```bash
-cmake -DTURNDOWN_PARSER_BACKEND=lexbor ..  # or tidy, gumbo
+cmake -DTURNDOWN_PARSER_BACKEND=lexbor ..  # or tidy, gumbo, libxml2
+```
+
+On macOS with Homebrew libxml2:
+
+```bash
+brew install libxml2
+cmake -DTURNDOWN_PARSER_BACKEND=libxml2 -DCMAKE_PREFIX_PATH="$(brew --prefix libxml2)" ..
 ```
 
 ## Usage

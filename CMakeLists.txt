@@ -20,8 +20,8 @@ option(TURNDOWN_BUILD_BENCHMARKS "Build Google Benchmark integration" ON)
 option(TURNDOWN_BUILD_DOCS "Build Doxygen documentation" OFF)
 
 # Parser backend selection
-set(TURNDOWN_PARSER_BACKEND "gumbo" CACHE STRING "HTML parser backend (gumbo, tidy, or lexbor)")
-set_property(CACHE TURNDOWN_PARSER_BACKEND PROPERTY STRINGS "gumbo" "tidy" "lexbor")
+set(TURNDOWN_PARSER_BACKEND "gumbo" CACHE STRING "HTML parser backend (gumbo, tidy, lexbor, or libxml2)")
+set_property(CACHE TURNDOWN_PARSER_BACKEND PROPERTY STRINGS "gumbo" "tidy" "lexbor" "libxml2")
 
 # Static linking preference (for release builds)
 option(TURNDOWN_PREFER_STATIC "Prefer static libraries for parser backend" OFF)
@@ -47,8 +47,12 @@ elseif(TURNDOWN_PARSER_BACKEND STREQUAL "lexbor")
     find_package(Lexbor REQUIRED)
     set(TURNDOWN_PARSER_TARGET Lexbor::Lexbor)
     set(TURNDOWN_PARSER_ADAPTER_SOURCE "lexbor_adapter.cpp")
+elseif(TURNDOWN_PARSER_BACKEND STREQUAL "libxml2")
+    find_package(LibXml2 REQUIRED)
+    set(TURNDOWN_PARSER_TARGET LibXml2::LibXml2)
+    set(TURNDOWN_PARSER_ADAPTER_SOURCE "libxml2_adapter.cpp")
 else()
-    message(FATAL_ERROR "Unknown parser backend: ${TURNDOWN_PARSER_BACKEND}. Use 'gumbo', 'tidy', or 'lexbor'.")
+    message(FATAL_ERROR "Unknown parser backend: ${TURNDOWN_PARSER_BACKEND}. Use 'gumbo', 'tidy', 'lexbor', or 'libxml2'.")
 endif()
 
 message(STATUS "Using HTML parser backend: ${TURNDOWN_PARSER_BACKEND}")
@@ -142,6 +146,7 @@ install(DIRECTORY include/
     PATTERN "gumbo_adapter.h" EXCLUDE
     PATTERN "tidy_adapter.h" EXCLUDE
     PATTERN "lexbor_adapter.h" EXCLUDE
+    PATTERN "libxml2_adapter.h" EXCLUDE
 )
 
 write_basic_package_version_file(

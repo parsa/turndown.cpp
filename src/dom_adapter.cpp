@@ -27,6 +27,11 @@
     namespace turndown_cpp::dom::detail {
         namespace backend = turndown_cpp::tidy;
     }
+#elif defined(TURNDOWN_PARSER_BACKEND_LIBXML2)
+    #include "libxml2_adapter.h"
+    namespace turndown_cpp::dom::detail {
+        namespace backend = turndown_cpp::libxml2;
+    }
 #else
     #include "gumbo_adapter.h"
     namespace turndown_cpp::dom::detail {
