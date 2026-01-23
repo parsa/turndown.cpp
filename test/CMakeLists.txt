@@ -36,6 +36,19 @@ if(TURNDOWN_BUILD_CLI)
         TURNDOWN_CLI_PATH="$<TARGET_FILE:turndown_cli>"
     )
     add_dependencies(turndown_cli_test turndown_cli)
+
+    # -------------------------------------------------------------------------
+    # Runtime plugin integration test for the CLI
+    # -------------------------------------------------------------------------
+    add_library(turndown_cli_sample_plugin SHARED cli_sample_plugin.cpp)
+    target_link_libraries(turndown_cli_sample_plugin PRIVATE turndown_cpp_lib)
+
+    turndown_add_gtest(turndown_cli_plugin_test cli_plugin_test.cpp)
+    target_compile_definitions(turndown_cli_plugin_test PRIVATE
+        TURNDOWN_CLI_PATH="$<TARGET_FILE:turndown_cli>"
+        TURNDOWN_PLUGIN_PATH="$<TARGET_FILE:turndown_cli_sample_plugin>"
+    )
+    add_dependencies(turndown_cli_plugin_test turndown_cli turndown_cli_sample_plugin)
 else()
     message(STATUS "Skipping CLI integration tests because TURNDOWN_BUILD_CLI is OFF.")
 endif()

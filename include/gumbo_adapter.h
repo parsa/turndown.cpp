@@ -13,14 +13,14 @@
 
 #include "dom_concepts.h"
 
+#include <gumbo.h>
+
 #include <cstddef>
 #include <functional>
 #include <iterator>
 #include <string>
 #include <string_view>
 #include <vector>
-
-#include <gumbo.h>
 
 namespace turndown_cpp::gumbo {
 
