@@ -8,5 +8,10 @@ CMakeUserPresets.json
 /build/
 /Testing/Temporary/
 
+# Python build artifacts
+/dist/
+/wheelhouse/
+/.venv/
+
 # Generated documentation
 /docs/

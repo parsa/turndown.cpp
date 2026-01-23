@@ -20,8 +20,45 @@ This is a C++ port of the JavaScript [Turndown](https://github.com/mixmark-io/tu
 - Plugin system for custom rules
 - Keep/remove filters for HTML elements
 - Command-line interface (CLI) tool
+- Python bindings (via `pybind11`)
 
 ## Installation
+
+### Python (pip)
+
+The Python package is **dist** `turndown` and **import** `turndown`.
+
+```bash
+pip install turndown
+```
+
+```python
+import turndown
+
+service = turndown.TurndownService()
+print(service.turndown("<h1>Hello</h1>"))
+```
+
+Custom rules/plugins from Python:
+
+```python
+import turndown
+
+def mark_plugin(service: turndown.TurndownService) -> None:
+    service.add_rule(
+        "mark",
+        lambda node, options: node.has_tag("mark"),
+        lambda content, node, options: f"=={content}==",
+    )
+
+service = turndown.TurndownService()
+service.use(mark_plugin)
+print(service.turndown("<p><mark>x</mark></p>"))  # ==x==
+```
+
+Notes:
+- The published wheels are built with the **`libxml2` HTML parser backend** (bundled; no system `libxml2` required).
+- `NodeView` objects passed into Python callbacks are only valid **during** the conversion call; do not store them.
 
 ### Prerequisites
 

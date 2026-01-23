@@ -18,6 +18,7 @@ option(TURNDOWN_BUILD_EXAMPLES "Build the example executable" ON)
 option(TURNDOWN_BUILD_TESTING "Build the test suite" ON)
 option(TURNDOWN_BUILD_BENCHMARKS "Build Google Benchmark integration" ON)
 option(TURNDOWN_BUILD_DOCS "Build Doxygen documentation" OFF)
+option(TURNDOWN_BUILD_PYTHON "Build Python extension module (pybind11)" OFF)
 
 # Parser backend selection
 set(TURNDOWN_PARSER_BACKEND "gumbo" CACHE STRING "HTML parser backend (gumbo, tidy, lexbor, or libxml2)")
@@ -25,6 +26,9 @@ set_property(CACHE TURNDOWN_PARSER_BACKEND PROPERTY STRINGS "gumbo" "tidy" "lexb
 
 # Static linking preference (for release builds)
 option(TURNDOWN_PREFER_STATIC "Prefer static libraries for parser backend" OFF)
+
+# Bundle libxml2 from source (primarily intended for Python wheel builds)
+option(TURNDOWN_BUNDLE_LIBXML2 "Build libxml2 from source via FetchContent (static, no system dependency)" OFF)
 
 # Include CTest only if testing is enabled
 if(TURNDOWN_BUILD_TESTING)
@@ -48,7 +52,38 @@ elseif(TURNDOWN_PARSER_BACKEND STREQUAL "lexbor")
     set(TURNDOWN_PARSER_TARGET Lexbor::Lexbor)
     set(TURNDOWN_PARSER_ADAPTER_SOURCE "lexbor_adapter.cpp")
 elseif(TURNDOWN_PARSER_BACKEND STREQUAL "libxml2")
-    find_package(LibXml2 REQUIRED)
+    if(TURNDOWN_BUNDLE_LIBXML2)
+        if(BUILD_SHARED_LIBS)
+            message(FATAL_ERROR "TURNDOWN_BUNDLE_LIBXML2 requires BUILD_SHARED_LIBS=OFF (static build is required for wheel-friendly bundling).")
+        endif()
+
+        include(FetchContent)
+
+        # Ensure libxml2 is built as a static library.
+        set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
+
+        # Configure libxml2 to build a minimal, static library suitable for bundling.
+        set(LIBXML2_WITH_HTML ON CACHE BOOL "Enable HTML parser support" FORCE)
+        set(LIBXML2_WITH_PROGRAMS OFF CACHE BOOL "Do not build xmllint/xmlcatalog" FORCE)
+        set(LIBXML2_WITH_TESTS OFF CACHE BOOL "Do not build libxml2 tests" FORCE)
+        set(LIBXML2_WITH_DOCS OFF CACHE BOOL "Do not build libxml2 docs" FORCE)
+        set(LIBXML2_WITH_PYTHON OFF CACHE BOOL "Do not build libxml2's own Python bindings" FORCE)
+        set(LIBXML2_WITH_MODULES OFF CACHE BOOL "Disable dynamic modules" FORCE)
+        set(LIBXML2_WITH_ZLIB OFF CACHE BOOL "Disable zlib dependency" FORCE)
+        set(LIBXML2_WITH_ICONV OFF CACHE BOOL "Disable iconv dependency" FORCE)
+        set(LIBXML2_WITH_ICU OFF CACHE BOOL "Disable ICU dependency" FORCE)
+        set(LIBXML2_WITH_LEGACY OFF CACHE BOOL "Disable legacy mode" FORCE)
+
+        FetchContent_Declare(
+            libxml2
+            GIT_REPOSITORY https://github.com/GNOME/libxml2.git
+            GIT_TAG v2.15.1
+            GIT_SHALLOW TRUE
+        )
+        FetchContent_MakeAvailable(libxml2)
+    else()
+        find_package(LibXml2 REQUIRED)
+    endif()
     set(TURNDOWN_PARSER_TARGET LibXml2::LibXml2)
     set(TURNDOWN_PARSER_ADAPTER_SOURCE "libxml2_adapter.cpp")
 else()
@@ -64,10 +99,17 @@ add_compile_definitions(${TURNDOWN_PARSER_BACKEND_DEFINE})
 
 # Provide a reusable alias target for consumers
 if(NOT TARGET turndown_cpp::parser)
-    add_library(turndown_cpp::parser ALIAS ${TURNDOWN_PARSER_TARGET})
+    # Use an IMPORTED INTERFACE wrapper so we can point at imported or ALIAS backends
+    # without tripping CMake's ALIAS-of-ALIAS restrictions.
+    add_library(turndown_cpp::parser INTERFACE IMPORTED)
+    set_property(TARGET turndown_cpp::parser PROPERTY INTERFACE_LINK_LIBRARIES ${TURNDOWN_PARSER_TARGET})
 endif()
 
 add_subdirectory(src)
+
+if(TURNDOWN_BUILD_PYTHON)
+    add_subdirectory(python)
+endif()
 
 if(TURNDOWN_BUILD_CLI)
     add_subdirectory(cli)
